@@ -36,12 +36,15 @@ impl fmt::Display for ReadError {
 pub enum FormatErrorKind {
     /// The file does not start with a "RIFF" tag and chunk size.
     NotARiffFile,
+    /// The file doesn't continue with "WAVE" after the RIFF chunk header.
+    NotAWaveFile,
 }
 
 impl FormatErrorKind {
     fn to_string(&self) -> &str {
         match *self {
             FormatErrorKind::NotARiffFile => "not a RIFF file",
+            FormatErrorKind::NotAWaveFile => "not a WAVE file",
         }
     }
 }
@@ -83,6 +86,11 @@ trait WaveReader: Read {
         // validate it, so that we can still try to read files that might have
         // an incorrect chunk size, so let's skip over it.
         let _ = try!(self.read_chunk_size());
+        Ok(())
+    }
+
+    fn validate_is_wave_file(&mut self) -> ReadResult<()> {
+        try!(self.validate_tag(b"WAVE", FormatErrorKind::NotAWaveFile));
         Ok(())
     }
 
@@ -130,7 +138,9 @@ mod tests {
                 },
             }
         };
-    }    
+    }
+
+    // RIFF header tests
 
     #[test]
     fn test_validate_is_riff_file_ok() {
@@ -150,5 +160,27 @@ mod tests {
         let mut data = Cursor::new(b"JPEG     ");
         assert_matches!(Err(ReadError::Format(FormatErrorKind::NotARiffFile)),
                         data.validate_is_riff_file());
+    }
+
+    // Wave tag tests
+
+    #[test]
+    fn test_validate_is_wave_file_ok() {
+        let mut data = Cursor::new(b"WAVE");
+        assert_matches!(Ok(()), data.validate_is_wave_file());
+    }
+
+    #[test]
+    fn test_validate_is_wave_file_err_incomplete() {
+        let mut data = Cursor::new(b"WAV ");
+        assert_matches!(Err(ReadError::Format(FormatErrorKind::NotAWaveFile)),
+                        data.validate_is_wave_file());
+    }
+
+    #[test]
+    fn test_validate_is_wave_file_err_something_else() {
+        let mut data = Cursor::new(b"JPEG");
+        assert_matches!(Err(ReadError::Format(FormatErrorKind::NotAWaveFile)),
+                        data.validate_is_wave_file());
     }
 }
