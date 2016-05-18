@@ -91,13 +91,13 @@ const FORMAT_EXTENDED: u16 = 65534;
 #[derive(Debug)]
 enum Format {
     UncompressedPcm,
-    ExtendedWave,
+    Extended,
 }
 
 fn validate_pcm_format(format: u16) -> ReadResult<Format> {
     match format {
         FORMAT_UNCOMPRESSED_PCM => Ok(Format::UncompressedPcm),
-        FORMAT_EXTENDED => Ok(Format::ExtendedWave),
+        FORMAT_EXTENDED => Ok(Format::Extended),
         _ => Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(format))),
     }
 }
@@ -286,8 +286,7 @@ mod tests {
 
     #[test]
     fn test_validate_pcm_format_ok_extended() {
-        assert_matches!(Ok(Format::ExtendedWave),
-                        validate_pcm_format(FORMAT_EXTENDED));
+        assert_matches!(Ok(Format::Extended), validate_pcm_format(FORMAT_EXTENDED));
     }
 
     #[test]
