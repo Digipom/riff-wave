@@ -99,6 +99,13 @@ fn validate_pcm_format(format: u16) -> ReadResult<Format> {
     }
 }
 
+fn validate_pcm_subformat(sub_format: u16) -> ReadResult<()> {
+    match sub_format {
+        FORMAT_UNCOMPRESSED_PCM => Ok(()),
+        _ => Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(sub_format))),
+    }
+}
+
 trait WaveReader: Read + Seek {
     fn validate_is_riff_file(&mut self) -> ReadResult<()> {
         try!(self.validate_tag(b"RIFF", FormatErrorKind::NotARiffFile));
@@ -159,7 +166,7 @@ mod tests {
 
     use {FORMAT_UNCOMPRESSED_PCM, FORMAT_EXTENDED};
     use {Format, FormatErrorKind, ReadError, WaveReader};
-    use validate_pcm_format;
+    use {validate_pcm_format, validate_pcm_subformat};
 
     // This is a helper macro that helps us validate results in our tests.
     // Thank you bluss and durka42!
@@ -257,7 +264,8 @@ mod tests {
         assert_eq!(0, size.unwrap());
     }
 
-    // Wave format validation tests
+    // Wave format validation tests. We only support uncompressed PCM files,
+    // which can be in the "canonical" format or an "extended" format.
 
     #[test]
     fn test_validate_pcm_format_ok_uncompressed() {
@@ -275,5 +283,24 @@ mod tests {
     fn test_validate_pcm_format_err_not_uncompressed() {
         assert_matches!(Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(_))),
         				validate_pcm_format(12345));
+    }
+
+    // Wave subformat validation tests. We only support uncompressed PCM files.
+
+    #[test]
+    fn test_validate_pcm_subformat_ok_uncompressed() {
+        assert_matches!(Ok(()), validate_pcm_subformat(FORMAT_UNCOMPRESSED_PCM));
+    }
+
+    #[test]
+    fn test_validate_pcm_subformat_err_extended_format_value_not_valid_for_subformat() {
+        assert_matches!(Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(_))),
+            			validate_pcm_subformat(FORMAT_EXTENDED));
+    }
+
+    #[test]
+    fn test_validate_pcm_subformat_err_not_uncompressed() {
+        assert_matches!(Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(_))),
+						validate_pcm_subformat(12345));
     }
 }
