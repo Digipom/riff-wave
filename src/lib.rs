@@ -42,6 +42,8 @@ pub enum FormatErrorKind {
     NotAnUncompressedPcmWaveFile(u16),
     /// This file is missing header data and can't be parsed.
     FmtChunkTooShort,
+    /// The number of channels is zero, which is invalid.
+    NumChannelsIsZero,
 }
 
 impl FormatErrorKind {
@@ -51,6 +53,7 @@ impl FormatErrorKind {
             FormatErrorKind::NotAWaveFile => "not a WAVE file",
             FormatErrorKind::NotAnUncompressedPcmWaveFile(_) => "Not an uncompressed wave file",
             FormatErrorKind::FmtChunkTooShort => "fmt_ chunk is too short",
+            FormatErrorKind::NumChannelsIsZero => "Number of channels is zero",
         }
     }
 }
@@ -141,6 +144,11 @@ trait WaveReader: Read + Seek {
         // uncompressed PCM file, we also need to be able to read the bits per sample.
         try!(validate_fmt_header_is_large_enough(fmt_subchunk_size, 16));
 
+        // We passed the format check; read in the PCM format fields.
+        let num_channels = try!(self.read_u16::<LittleEndian>());
+        if num_channels == 0 {
+            return Err(ReadError::Format(FormatErrorKind::NumChannelsIsZero));
+        }
         // Bogus until we complete our validation checks
         Err(ReadError::Format(FormatErrorKind::NotARiffFile))
     }
@@ -393,6 +401,19 @@ mod tests {
                                      \x02\x00");
         assert_matches!(Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(_))),
             			data.read_wave_header());
+    }
 
+    #[test]
+    fn test_validate_pcm_header_dont_accept_zero_channels() {
+        let mut data = Cursor::new(b"RIFF    WAVE\
+                                     fmt \x10\x00\x00\x00\
+                                     \x01\x00\
+                                     \x00\x00\
+                                     \x00\x00\x00\x00\
+                                     \x00\x00\x00\x00\
+                                     \x00\x00\
+                                     \x00\x00" as &[u8]);
+        assert_matches!(Err(ReadError::Format(FormatErrorKind::NumChannelsIsZero)),
+                        data.read_wave_header());
     }
 }
