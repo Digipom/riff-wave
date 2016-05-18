@@ -40,6 +40,8 @@ pub enum FormatErrorKind {
     NotAWaveFile,
     /// This file is not an uncompressed PCM wave file. Only uncompressed files are supported.
     NotAnUncompressedPcmWaveFile(u16),
+    /// This file is missing header data and can't be parsed.
+    FmtChunkTooShort,
 }
 
 impl FormatErrorKind {
@@ -48,6 +50,7 @@ impl FormatErrorKind {
             FormatErrorKind::NotARiffFile => "not a RIFF file",
             FormatErrorKind::NotAWaveFile => "not a WAVE file",
             FormatErrorKind::NotAnUncompressedPcmWaveFile(_) => "Not an uncompressed wave file",
+            FormatErrorKind::FmtChunkTooShort => "fmt_ chunk is too short",
         }
     }
 }
@@ -103,6 +106,14 @@ fn validate_pcm_subformat(sub_format: u16) -> ReadResult<()> {
     match sub_format {
         FORMAT_UNCOMPRESSED_PCM => Ok(()),
         _ => Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(sub_format))),
+    }
+}
+
+fn validate_fmt_header_is_large_enough(size: u32, min_size: u32) -> ReadResult<()> {
+    if size < min_size {
+        Err(ReadError::Format(FormatErrorKind::FmtChunkTooShort))
+    } else {
+        Ok(())
     }
 }
 
@@ -166,7 +177,7 @@ mod tests {
 
     use {FORMAT_UNCOMPRESSED_PCM, FORMAT_EXTENDED};
     use {Format, FormatErrorKind, ReadError, WaveReader};
-    use {validate_pcm_format, validate_pcm_subformat};
+    use {validate_fmt_header_is_large_enough, validate_pcm_format, validate_pcm_subformat};
 
     // This is a helper macro that helps us validate results in our tests.
     // Thank you bluss and durka42!
@@ -302,5 +313,23 @@ mod tests {
     fn test_validate_pcm_subformat_err_not_uncompressed() {
         assert_matches!(Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(_))),
 						validate_pcm_subformat(12345));
+    }
+
+    // Validation tests for ensuring the header is large enough to read in the data we need.
+
+    #[test]
+    fn test_validate_fmt_header_is_large_enough_matches() {
+        assert_matches!(Ok(()), validate_fmt_header_is_large_enough(16, 16));
+    }
+
+    #[test]
+    fn test_validate_fmt_header_is_large_enough_more_than_we_need() {
+        assert_matches!(Ok(()), validate_fmt_header_is_large_enough(22, 16));
+    }
+
+    #[test]
+    fn test_validate_fmt_header_is_large_enough_too_small() {
+        assert_matches!(Err(ReadError::Format(FormatErrorKind::FmtChunkTooShort)),
+                        validate_fmt_header_is_large_enough(14, 16));
     }
 }
