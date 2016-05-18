@@ -38,6 +38,8 @@ pub enum FormatErrorKind {
     NotARiffFile,
     /// The file doesn't continue with "WAVE" after the RIFF chunk header.
     NotAWaveFile,
+    /// This file is not an uncompressed PCM wave file. Only uncompressed files are supported.
+    NotAnUncompressedPcmWaveFile(u16),
 }
 
 impl FormatErrorKind {
@@ -45,6 +47,7 @@ impl FormatErrorKind {
         match *self {
             FormatErrorKind::NotARiffFile => "not a RIFF file",
             FormatErrorKind::NotAWaveFile => "not a WAVE file",
+            FormatErrorKind::NotAnUncompressedPcmWaveFile(_) => "Not an uncompressed wave file",
         }
     }
 }
@@ -78,6 +81,23 @@ impl From<io::Error> for ReadError {
 }
 
 // MARK: Validation and parsing functions
+
+const FORMAT_UNCOMPRESSED_PCM: u16 = 1;
+const FORMAT_EXTENDED: u16 = 65534;
+
+#[derive(Debug)]
+enum Format {
+    UncompressedPcm,
+    ExtendedWave,
+}
+
+fn validate_pcm_format(format: u16) -> ReadResult<Format> {
+    match format {
+        FORMAT_UNCOMPRESSED_PCM => Ok(Format::UncompressedPcm),
+        FORMAT_EXTENDED => Ok(Format::ExtendedWave),
+        _ => Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(format))),
+    }
+}
 
 trait WaveReader: Read + Seek {
     fn validate_is_riff_file(&mut self) -> ReadResult<()> {
@@ -137,7 +157,9 @@ impl<T> WaveReader for T where T: Read + Seek {}
 mod tests {
     use std::io::Cursor;
 
-    use {FormatErrorKind, ReadError, WaveReader};
+    use {FORMAT_UNCOMPRESSED_PCM, FORMAT_EXTENDED};
+    use {Format, FormatErrorKind, ReadError, WaveReader};
+    use validate_pcm_format;
 
     // This is a helper macro that helps us validate results in our tests.
     // Thank you bluss and durka42!
@@ -233,5 +255,25 @@ mod tests {
         let _ = data.skip_until_subchunk(b"fmt ");
         let size = data.skip_until_subchunk(b"data");
         assert_eq!(0, size.unwrap());
+    }
+
+    // Wave format validation tests
+
+    #[test]
+    fn test_validate_pcm_format_ok_uncompressed() {
+        assert_matches!(Ok(Format::UncompressedPcm),
+                        validate_pcm_format(FORMAT_UNCOMPRESSED_PCM));
+    }
+
+    #[test]
+    fn test_validate_pcm_format_ok_extended() {
+        assert_matches!(Ok(Format::ExtendedWave),
+                        validate_pcm_format(FORMAT_EXTENDED));
+    }
+
+    #[test]
+    fn test_validate_pcm_format_err_not_uncompressed() {
+        assert_matches!(Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(_))),
+        				validate_pcm_format(12345));
     }
 }
