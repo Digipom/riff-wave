@@ -94,6 +94,13 @@ enum Format {
     Extended,
 }
 
+#[derive(Debug)]
+struct PcmFormat {
+    num_channels: u16,
+    sample_rate: u32,
+    bits_per_sample: u16,
+}
+
 fn validate_pcm_format(format: u16) -> ReadResult<Format> {
     match format {
         FORMAT_UNCOMPRESSED_PCM => Ok(Format::UncompressedPcm),
@@ -118,6 +125,26 @@ fn validate_fmt_header_is_large_enough(size: u32, min_size: u32) -> ReadResult<(
 }
 
 trait WaveReader: Read + Seek {
+    fn read_wave_header(&mut self) -> ReadResult<PcmFormat> {
+        // Validate the beginning of the file
+        try!(self.validate_is_riff_file());
+        try!(self.validate_is_wave_file());
+
+        // Scan for the "fmt " chunk, and validate the format. Check the header
+        // size before and after the format check so we can present the
+        // appropriate error types.
+        let fmt_subchunk_size = try!(self.skip_until_subchunk(b"fmt "));
+        // We need at least 14 bytes for wave files.
+        try!(validate_fmt_header_is_large_enough(fmt_subchunk_size, 14));
+        let format = try!(validate_pcm_format(try!(self.read_u16::<LittleEndian>())));
+        // Now that we've validated the PCM format so that we know this is an
+        // uncompressed PCM file, we also need to be able to read the bits per sample.
+        try!(validate_fmt_header_is_large_enough(fmt_subchunk_size, 16));
+
+        // Bogus until we complete our validation checks
+        Err(ReadError::Format(FormatErrorKind::NotARiffFile))
+    }
+
     fn validate_is_riff_file(&mut self) -> ReadResult<()> {
         try!(self.validate_tag(b"RIFF", FormatErrorKind::NotARiffFile));
         // The next four bytes represent the chunk size. We're not going to
@@ -173,6 +200,7 @@ impl<T> WaveReader for T where T: Read + Seek {}
 
 #[cfg(test)]
 mod tests {
+    use std::io;
     use std::io::Cursor;
 
     use {FORMAT_UNCOMPRESSED_PCM, FORMAT_EXTENDED};
@@ -330,5 +358,41 @@ mod tests {
     fn test_validate_fmt_header_is_large_enough_too_small() {
         assert_matches!(Err(ReadError::Format(FormatErrorKind::FmtChunkTooShort)),
                         validate_fmt_header_is_large_enough(14, 16));
+    }
+
+    // Wave header validation tests.
+
+    #[test]
+    fn test_validate_pcm_header_missing_fmt_chunk() {
+        let mut data = Cursor::new(b"RIFF    WAVE");
+        assert_matches!(Err(ReadError::Io(ref err)) if err.kind() == io::ErrorKind::UnexpectedEof,
+            			data.read_wave_header());
+    }
+
+    #[test]
+    fn test_validate_pcm_header_fmt_chunk_too_small() {
+        let mut data = Cursor::new(b"RIFF    WAVE\
+                                     fmt \x0C\x00\x00\x00");
+        assert_matches!(Err(ReadError::Format(FormatErrorKind::FmtChunkTooShort)),
+                        data.read_wave_header());
+    }
+
+    #[test]
+    fn test_validate_pcm_header_fmt_chunk_too_small_pcm() {
+        let mut data = Cursor::new(b"RIFF    WAVE\
+                                     fmt \x0E\x00\x00\x00\
+                                     \x01\x00");
+        assert_matches!(Err(ReadError::Format(FormatErrorKind::FmtChunkTooShort)),
+                        data.read_wave_header());
+    }
+
+    #[test]
+    fn test_validate_pcm_header_not_pcm_format() {
+        let mut data = Cursor::new(b"RIFF    WAVE\
+                                     fmt \x0E\x00\x00\x00\
+                                     \x02\x00");
+        assert_matches!(Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(_))),
+            			data.read_wave_header());
+
     }
 }
