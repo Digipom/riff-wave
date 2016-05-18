@@ -3,7 +3,7 @@ extern crate byteorder;
 use std::error;
 use std::fmt;
 use std::io;
-use std::io::Read;
+use std::io::{Read, Seek, SeekFrom};
 use std::result;
 
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -79,7 +79,7 @@ impl From<io::Error> for ReadError {
 
 // MARK: Validation and parsing functions
 
-trait WaveReader: Read {
+trait WaveReader: Read + Seek {
     fn validate_is_riff_file(&mut self) -> ReadResult<()> {
         try!(self.validate_tag(b"RIFF", FormatErrorKind::NotARiffFile));
         // The next four bytes represent the chunk size. We're not going to
@@ -105,6 +105,19 @@ trait WaveReader: Read {
         Ok(())
     }
 
+    fn skip_until_subchunk(&mut self, matching_tag: &[u8; 4]) -> ReadResult<u32> {
+        loop {
+            let tag = try!(self.read_tag());
+            let subchunk_size = try!(self.read_chunk_size());
+
+            if &tag == matching_tag {
+                return Ok(subchunk_size);
+            } else {
+                try!(self.seek(SeekFrom::Current(subchunk_size.into())));
+            }
+        }
+    }
+
     fn read_tag(&mut self) -> ReadResult<[u8; 4]> {
         let mut tag: [u8; 4] = [0; 4];
         try!(self.read_exact(&mut tag));
@@ -116,7 +129,7 @@ trait WaveReader: Read {
     }
 }
 
-impl<T> WaveReader for T where T: Read {}
+impl<T> WaveReader for T where T: Read + Seek {}
 
 // MARK: Tests
 
@@ -182,5 +195,43 @@ mod tests {
         let mut data = Cursor::new(b"JPEG");
         assert_matches!(Err(ReadError::Format(FormatErrorKind::NotAWaveFile)),
                         data.validate_is_wave_file());
+    }
+
+    // Skipping to subchunk tests
+    // After reading in the file header, we also need to read in the "fmt " subchunk.
+    // The file might contain other subchunks that we don't currently support, so
+    // we'll need to skip over them.
+
+    #[test]
+    fn test_skip_until_subchunk() {
+        // A size of 0.
+        let mut data = Cursor::new(b"RIFF    WAVEfmt \x00\x00\x00\x00");
+        let _ = data.validate_is_riff_file();
+        let _ = data.validate_is_wave_file();
+        let size = data.skip_until_subchunk(b"fmt ");
+        assert_eq!(0, size.unwrap());
+    }
+
+    #[test]
+    fn test_skip_until_second_subchunk() {
+        // A size of 0.
+        let mut data = Cursor::new(b"RIFF    WAVEfmt \x00\x00\x00\x00data\x00\x00\x00\x00");
+        let _ = data.validate_is_riff_file();
+        let _ = data.validate_is_wave_file();
+        let _ = data.skip_until_subchunk(b"fmt ");
+        let size = data.skip_until_subchunk(b"data");
+        assert_eq!(0, size.unwrap());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_cant_read_first_subchunk_after_second() {
+        // A size of 0.
+        let mut data = Cursor::new(b"RIFF    WAVEdata\x00\x00\x00\x00fmt \x00\x00\x00\x00");
+        let _ = data.validate_is_riff_file();
+        let _ = data.validate_is_wave_file();
+        let _ = data.skip_until_subchunk(b"fmt ");
+        let size = data.skip_until_subchunk(b"data");
+        assert_eq!(0, size.unwrap());
     }
 }
