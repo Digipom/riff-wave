@@ -2,6 +2,11 @@
 name = "riff-wave"
 version = "0.0.1"
 authors = ["Kevin Brothaler <contact@digipom.com>"]
+description = "Methods for reading PCM wave files. Very incomplete at the present time."
+keywords = ["audio", "riff", "sample", "wave", "pcm"]
+license = "Apache-2.0"
+homepage = "https://github.com/Digipom/riff-wave"
+repository = "https://github.com/Digipom/riff-wave"
 
 [dependencies]
 byteorder = "0.5.1"
