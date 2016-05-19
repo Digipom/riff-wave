@@ -4,6 +4,8 @@ use std::fs::File;
 
 use riff_wave::WaveReader;
 
+// MARK: "Standard" PCM wave formats.
+
 #[test]
 fn test_header_for_standard_file_8bit_mono_16000() {
 	let file = File::open("tests/pcm_8bit_mono_16000_standard.wav").unwrap();
@@ -38,4 +40,15 @@ fn test_header_for_standard_file_16bit_stereo_44100_with_cb() {
 	assert_eq!(2, wave_reader.pcm_format.num_channels);
 	assert_eq!(44100, wave_reader.pcm_format.sample_rate);
 	assert_eq!(16, wave_reader.pcm_format.bits_per_sample);
+}
+
+// MARK: "Extended" PCM wave formats.
+
+#[test]
+fn test_header_for_extended_file_32bit_stereo_44100() {
+	let file = File::open("tests/pcm_32bit_stereo_44100_extended.wav").unwrap();
+	let wave_reader = WaveReader::new(file).unwrap();
+	assert_eq!(2, wave_reader.pcm_format.num_channels);
+	assert_eq!(44100, wave_reader.pcm_format.sample_rate);
+	assert_eq!(32, wave_reader.pcm_format.bits_per_sample);
 }
