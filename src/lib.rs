@@ -413,7 +413,19 @@ impl<T> ReadWaveExt for T where T: Read + Seek {}
 pub struct WaveReader<T>
     where T: Read + Seek
 {
+    ///  Represents the PCM format for this wave file.
     pub pcm_format: PcmFormat,
+
+    // The byte offset in the file where the actual wave data begins (should be
+    // 8 bytes after the beginning of the data subchunk).
+    data_begin: u64,
+
+    // The byte offset in the file where the wave data ends. This is vulnerable
+    // to I/O errors if the subchunk size is invalid and is greater than the
+    // size of the underlying data.
+    data_end: u64,
+
+    // The underlying reader that we'll use to read data.
     reader: T,
 }
 
@@ -423,8 +435,15 @@ impl<T> WaveReader<T>
     /// Returns a new wave reader for the given reader.
     pub fn new(mut reader: T) -> ReadResult<WaveReader<T>> {
         let pcm_format = try!(reader.read_wave_header());
+        let data_subchunk_size = try!(reader.skip_until_subchunk(b"data"));
+
+        let data_begin = try!(reader.seek(SeekFrom::Current(0)));
+        let data_end = data_begin + data_subchunk_size as u64;
+
         Ok(WaveReader {
             pcm_format: pcm_format,
+            data_begin: data_begin,
+            data_end: data_end,
             reader: reader,
         })
     }
@@ -438,7 +457,7 @@ mod tests {
     use std::io::{Cursor, Read};
 
     use {FORMAT_UNCOMPRESSED_PCM, FORMAT_EXTENDED};
-    use {Format, FormatErrorKind, PcmFormat, ReadError, ReadWaveExt};
+    use {Format, FormatErrorKind, PcmFormat, ReadError, ReadWaveExt, WaveReader};
     use {validate_fmt_header_is_large_enough, validate_pcm_format, validate_pcm_subformat};
 
     // This is a helper macro that helps us validate results in our tests.
@@ -909,5 +928,51 @@ mod tests {
         let _ = data.skip_over_remainder(4, 8);
         let _ = data.read(&mut buf);
         assert_eq!(b"UVWX", &buf);
+    }
+
+    // Wave reader tests
+
+    #[test]
+    fn test_data_begin_and_data_end_with_empty_data_chunk() {
+        let mut vec = Vec::new();
+        vec.extend_from_slice(b"RIFF    WAVE\
+	                            fmt \x10\x00\x00\x00\
+	                            \x01\x00\
+	                            \x01\x00\
+	                            \x44\xAC\x00\x00\
+	                            \x00\x00\x00\x00\
+	                            \x00\x00\
+	                            \x08\x00\
+	                            data\x00\x00\x00\x00");
+        let mut cursor = Cursor::new(vec.clone());
+        let wave_reader = WaveReader::new(cursor).unwrap();
+
+        // No data
+        assert_eq!(44, wave_reader.data_begin);
+        assert_eq!(44, wave_reader.data_end);
+    }
+
+    #[test]
+    fn test_data_begin_and_data_end_with_some_data_chunk() {
+        let mut vec = Vec::new();
+        vec.extend_from_slice(b"RIFF    WAVE\
+	                            fmt \x10\x00\x00\x00\
+	                            \x01\x00\
+	                            \x01\x00\
+	                            \x44\xAC\x00\x00\
+	                            \x00\x00\x00\x00\
+	                            \x00\x00\
+	                            \x08\x00\
+	                            data\x10\x00\x00\x00\
+	                            \x00\x00\x00\x00\
+	                            \x00\x00\x00\x00\
+	                            \x00\x00\x00\x00\
+	                            \x00\x00\x00\x00");
+        let mut cursor = Cursor::new(vec.clone());
+        let wave_reader = WaveReader::new(cursor).unwrap();
+
+        // 16 bytes of data
+        assert_eq!(44, wave_reader.data_begin);
+        assert_eq!(60, wave_reader.data_end);
     }
 }
