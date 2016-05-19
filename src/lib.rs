@@ -246,10 +246,10 @@ enum Format {
 }
 
 #[derive(Debug)]
-struct PcmFormat {
-    num_channels: u16,
-    sample_rate: u32,
-    bits_per_sample: u16,
+pub struct PcmFormat {
+    pub num_channels: u16,
+    pub sample_rate: u32,
+    pub bits_per_sample: u16,
 }
 
 fn validate_pcm_format(format: u16) -> ReadResult<Format> {
@@ -275,7 +275,7 @@ fn validate_fmt_header_is_large_enough(size: u32, min_size: u32) -> ReadResult<(
     }
 }
 
-trait WaveReader: Read + Seek {
+trait ReadWaveExt: Read + Seek {
     fn read_wave_header(&mut self) -> ReadResult<PcmFormat> {
         // Validate the beginning of the file
         try!(self.validate_is_riff_file());
@@ -335,7 +335,7 @@ trait WaveReader: Read + Seek {
         // Ignore channel mask.
         let _ = try!(self.read_u32::<LittleEndian>());
         // Validate the subformat.
-        let subformat = try!(validate_pcm_subformat(try!(self.read_u16::<LittleEndian>())));
+        let _ = try!(validate_pcm_subformat(try!(self.read_u16::<LittleEndian>())));
         // Ignore the rest of the GUID.
         try!(self.skip_over_remainder(8, extra_info_size));
 
@@ -406,7 +406,22 @@ trait WaveReader: Read + Seek {
     }
 }
 
-impl<T> WaveReader for T where T: Read + Seek {}
+impl<T> ReadWaveExt for T where T: Read + Seek {}
+
+/// Helper struct that takes ownership of a reader and can be used to read data
+/// from a PCM wave file.
+pub struct WaveReader<T> where T: Read + Seek {
+	pub pcm_format: PcmFormat,
+	reader: T,
+}
+
+impl<T> WaveReader<T> where T: Read + Seek {
+	/// Returns a new wave reader for the given reader.
+	pub fn new(mut reader: T) -> ReadResult<WaveReader<T>> {
+		let pcm_format = try!(reader.read_wave_header());
+		Ok(WaveReader { pcm_format: pcm_format, reader: reader})
+	}
+}
 
 // MARK: Tests
 
@@ -416,7 +431,7 @@ mod tests {
     use std::io::{Cursor, Read};
 
     use {FORMAT_UNCOMPRESSED_PCM, FORMAT_EXTENDED};
-    use {Format, FormatErrorKind, PcmFormat, ReadError, WaveReader};
+    use {Format, FormatErrorKind, PcmFormat, ReadError, ReadWaveExt};
     use {validate_fmt_header_is_large_enough, validate_pcm_format, validate_pcm_subformat};
 
     // This is a helper macro that helps us validate results in our tests.
