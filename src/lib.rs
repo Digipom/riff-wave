@@ -234,7 +234,7 @@ mod tests {
     use std::io::Cursor;
 
     use {FORMAT_UNCOMPRESSED_PCM, FORMAT_EXTENDED};
-    use {Format, FormatErrorKind, ReadError, WaveReader};
+    use {Format, FormatErrorKind, PcmFormat, ReadError, WaveReader};
     use {validate_fmt_header_is_large_enough, validate_pcm_format, validate_pcm_subformat};
 
     // This is a helper macro that helps us validate results in our tests.
@@ -453,17 +453,19 @@ mod tests {
                         data.read_wave_header());
     }
 
+    // Standard wave files
+
     #[test]
     fn test_validate_pcm_header_validate_bits_per_sample_standard() {
         let mut vec = Vec::new();
         vec.extend_from_slice(b"RIFF    WAVE\
-                         fmt \x10\x00\x00\x00\
-                         \x01\x00\
-                         \x01\x00\
-                         \x44\xAC\x00\x00\
-                         \x00\x00\x00\x00\
-                         \x00\x00\
-                         \x08\x00");
+	                            fmt \x10\x00\x00\x00\
+	                            \x01\x00\
+	                            \x01\x00\
+	                            \x44\xAC\x00\x00\
+	                            \x00\x00\x00\x00\
+	                            \x00\x00\
+	                            \x08\x00");
 
         let mut cursor = Cursor::new(vec.clone());
         assert_matches!(Ok(_), cursor.read_wave_header());
@@ -489,5 +491,48 @@ mod tests {
         let mut cursor = Cursor::new(vec.clone());
         assert_matches!(Err(ReadError::Format(FormatErrorKind::UnsupportedBitsPerSample(_))),
             			cursor.read_wave_header());
+    }
+
+    #[test]
+    fn test_validate_pcm_header_8bit_mono_example_standard() {
+        let mut vec = Vec::new();
+        vec.extend_from_slice(b"RIFF    WAVE\
+	                            fmt \x10\x00\x00\x00\
+	                            \x01\x00\
+	                            \x01\x00\
+	                            \x44\xAC\x00\x00\
+	                            \x00\x00\x00\x00\
+	                            \x00\x00\
+	                            \x08\x00");
+        let mut cursor = Cursor::new(vec.clone());
+
+        assert_matches!(Ok(PcmFormat {
+                            num_channels: 1,
+                            sample_rate: 44100,
+                            bits_per_sample: 8,
+                        }),
+                        cursor.read_wave_header());
+    }
+
+    #[test]
+    fn test_validate_pcm_header_8bit_mono_example_standard_with_extra_cb_data() {
+        let mut vec = Vec::new();
+        vec.extend_from_slice(b"RIFF    WAVE\
+	                            fmt \x10\x00\x00\x00\
+	                            \x01\x00\
+	                            \x01\x00\
+	                            \x44\xAC\x00\x00\
+	                            \x00\x00\x00\x00\
+	                            \x00\x00\
+	                            \x08\x00\
+	                            \x00\x00\x00\x00");
+        let mut cursor = Cursor::new(vec.clone());
+
+        assert_matches!(Ok(PcmFormat {
+                            num_channels: 1,
+                            sample_rate: 44100,
+                            bits_per_sample: 8,
+                        }),
+                        cursor.read_wave_header());
     }
 }
