@@ -410,17 +410,24 @@ impl<T> ReadWaveExt for T where T: Read + Seek {}
 
 /// Helper struct that takes ownership of a reader and can be used to read data
 /// from a PCM wave file.
-pub struct WaveReader<T> where T: Read + Seek {
-	pub pcm_format: PcmFormat,
-	reader: T,
+pub struct WaveReader<T>
+    where T: Read + Seek
+{
+    pub pcm_format: PcmFormat,
+    reader: T,
 }
 
-impl<T> WaveReader<T> where T: Read + Seek {
-	/// Returns a new wave reader for the given reader.
-	pub fn new(mut reader: T) -> ReadResult<WaveReader<T>> {
-		let pcm_format = try!(reader.read_wave_header());
-		Ok(WaveReader { pcm_format: pcm_format, reader: reader})
-	}
+impl<T> WaveReader<T>
+    where T: Read + Seek
+{
+    /// Returns a new wave reader for the given reader.
+    pub fn new(mut reader: T) -> ReadResult<WaveReader<T>> {
+        let pcm_format = try!(reader.read_wave_header());
+        Ok(WaveReader {
+            pcm_format: pcm_format,
+            reader: reader,
+        })
+    }
 }
 
 // MARK: Tests
