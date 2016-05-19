@@ -77,7 +77,7 @@
 //!
 //! Offset | Size | Data            | Description
 //! -----: | ---: | --------------- | -----------------------------------------
-//!     36 |    4 | extra info size | For non-PCM formats, this stores the size of the additional info that follows the end of the standard header. Otherwise, it is set to 0.
+//!     36 |    2 | extra info size | For non-PCM formats, this stores the size of the additional info that follows the end of the standard header. Otherwise, it is set to 0.
 //!
 //! ### Extended wave files
 //!
@@ -86,9 +86,9 @@
 //!
 //! Offset | Size | Data            | Description
 //! -----: | ---: | --------------- | -----------------------------------------
-//!     40 |    2 | sample info     | For PCM files, this contains the valid bits for sample. For example, if this is set to 20 bits and `bits per sample` is set to 24 bits, then that means that 24 bits are being used to store the sample data, but the actual sample data should not exceed 20 bits of precision.
-//!     44 |    4 | channel mask    | This specifies the assignment of channels to speaker positions.
-//!     48 |   16 | sub format      | For extended wave files, `format` will be set to 0xFFFE to indicate that it's an extended wave file, with the actual format specified here as a [GUID][4]. The first two bytes are the same as specified in `format code`, and the remainder should match 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, and 0x71.
+//!     38 |    2 | sample info     | For PCM files, this contains the valid bits for sample. For example, if this is set to 20 bits and `bits per sample` is set to 24 bits, then that means that 24 bits are being used to store the sample data, but the actual sample data should not exceed 20 bits of precision.
+//!     42 |    4 | channel mask    | This specifies the assignment of channels to speaker positions.
+//!     46 |   16 | sub format      | For extended wave files, `format` will be set to 0xFFFE to indicate that it's an extended wave file, with the actual format specified here as a [GUID][4]. The first two bytes are the same as specified in `format code`, and the remainder should match 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, and 0x71.
 //!
 //! The MSDN docs recommend this format for files with more than two channels
 //! or more than 16 bits per sample, but it's also possible to encounter such
@@ -327,8 +327,8 @@ trait ReadWaveExt: Read + Seek {
 
     fn validate_extended_format(&mut self, bits_per_sample: u16) -> ReadResult<()> {
         // Validate the extended information.
-        let extra_info_size = try!(self.read_u32::<LittleEndian>());
-        try!(validate_fmt_header_is_large_enough(extra_info_size, 22));
+        let extra_info_size = try!(self.read_u16::<LittleEndian>());
+        try!(validate_fmt_header_is_large_enough(extra_info_size.into(), 22));
 
         // Read in the extended format fields.
         let sample_info = try!(self.read_u16::<LittleEndian>());
@@ -337,7 +337,7 @@ trait ReadWaveExt: Read + Seek {
         // Validate the subformat.
         let _ = try!(validate_pcm_subformat(try!(self.read_u16::<LittleEndian>())));
         // Ignore the rest of the GUID.
-        try!(self.skip_over_remainder(8, extra_info_size));
+        try!(self.skip_over_remainder(8, extra_info_size.into()));
 
         if sample_info != bits_per_sample {
             // We don't currently support wave files where the bits per sample
@@ -771,7 +771,7 @@ mod tests {
 		                        \x00\x00\x00\x00\
 		                        \x00\x00\
 		                        \x08\x00\
-		                        \x16\x00\x00\x00\
+		                        \x16\x00\
 		                        \x08\x00\
 		                        \x00\x00\x00\x00\
 		                        \x09\x00\x00\x00\x00\x00\x10\x00\x80\x00\x00\xAA\x00\x38\x9B\x71");
@@ -792,7 +792,7 @@ mod tests {
 		                        \x00\x00\x00\x00\
 		                        \x00\x00\
 		                        \x08\x00\
-		                        \x16\x00\x00\x00\
+		                        \x16\x00\
 		                        \x10\x00\
 		                        \x00\x00\x00\x00\
 		                        \x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00");
@@ -813,7 +813,7 @@ mod tests {
 	                            \x00\x00\x00\x00\
 	                            \x00\x00\
 	                            \x08\x00\
-	                            \x16\x00\x00\x00\
+	                            \x16\x00\
 	                            \x08\x00\
 	                            \x00\x00\x00\x00\
 	                            \x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00");
@@ -826,17 +826,17 @@ mod tests {
     fn test_validate_pcm_header_8bit_mono_example_extended() {
         let mut vec = Vec::new();
         vec.extend_from_slice(b"RIFF    WAVE\
-                         fmt \x10\x00\x00\x00\
-                         \xFE\xFF\
-                         \x01\x00\
-                         \x44\xAC\x00\x00\
-                         \x00\x00\x00\x00\
-                         \x00\x00\
-                         \x08\x00\
-                         \x16\x00\x00\x00\
-                         \x08\x00\
-                         \x00\x00\x00\x00\
-                         \x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00");
+		                        fmt \x10\x00\x00\x00\
+		                        \xFE\xFF\
+		                        \x01\x00\
+		                        \x44\xAC\x00\x00\
+		                        \x00\x00\x00\x00\
+		                        \x00\x00\
+		                        \x08\x00\
+		                        \x16\x00\
+		                        \x08\x00\
+		                        \x00\x00\x00\x00\
+		                        \x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00");
         let mut cursor = Cursor::new(vec.clone());
 
         assert_matches!(Ok(PcmFormat {
@@ -857,7 +857,7 @@ mod tests {
 
     #[test]
     fn test_validate_extended_format_not_pcm() {
-        let mut data = Cursor::new(b"\x16\x00\x00\x00\
+        let mut data = Cursor::new(b"\x16\x00\
                                      \x10\x00\
                                      \x00\x00\x00\x00\
                                      \xFF\xFF\x00\x00\x00\x00\x00\x00\
@@ -868,7 +868,7 @@ mod tests {
 
     #[test]
     fn test_validate_extended_format_sample_rate_doesnt_match() {
-        let mut data = Cursor::new(b"\x16\x00\x00\x00\
+        let mut data = Cursor::new(b"\x16\x00\
                                      \x0F\x00\
                                      \x00\x00\x00\x00\
                                      \x01\x00\x00\x00\x00\x00\x00\x00\
@@ -879,7 +879,7 @@ mod tests {
 
     #[test]
     fn test_validate_extended_format_sample_rate_ok() {
-        let mut data = Cursor::new(b"\x16\x00\x00\x00\
+        let mut data = Cursor::new(b"\x16\x00\
                                      \x10\x00\
                                      \x00\x00\x00\x00\
                                      \x01\x00\x00\x00\x00\x00\x00\x00\
