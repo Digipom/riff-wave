@@ -420,10 +420,12 @@ pub struct WaveReader<T>
     // 8 bytes after the beginning of the data subchunk).
     data_begin: u64,
 
-    // The byte offset in the file where the wave data ends. This is vulnerable
-    // to I/O errors if the subchunk size is invalid and is greater than the
-    // size of the underlying data.
+    // The byte offset in the file where the wave data ends. If the subchunk size
+    // is invalid, then the reader may run into I/O errors before reaching data_end.
     data_end: u64,
+
+    // The current data position, in bytes.
+    current_data_offset: u64,
 
     // The underlying reader that we'll use to read data.
     reader: T,
@@ -444,8 +446,27 @@ impl<T> WaveReader<T>
             pcm_format: pcm_format,
             data_begin: data_begin,
             data_end: data_end,
+            current_data_offset: data_begin,
             reader: reader,
         })
+    }
+
+    pub fn read_samples_as_u8(&mut self, buf: &mut [u8]) -> ReadResult<usize> {
+        let remaining = self.remaining();
+        if remaining < buf.len() as u64 {
+            let mut slice = &mut buf[0..remaining as usize];
+            let read = try!(self.reader.read(slice));
+            self.current_data_offset += read as u64;
+            Ok(read)
+        } else {
+            let read = try!(self.reader.read(buf));
+            self.current_data_offset += read as u64;
+            Ok(read)
+        }
+    }
+
+    fn remaining(&self) -> u64 {
+        self.data_end - self.current_data_offset
     }
 }
 
@@ -944,7 +965,7 @@ mod tests {
 	                            \x00\x00\
 	                            \x08\x00\
 	                            data\x00\x00\x00\x00");
-        let mut cursor = Cursor::new(vec.clone());
+        let cursor = Cursor::new(vec.clone());
         let wave_reader = WaveReader::new(cursor).unwrap();
 
         // No data
@@ -968,11 +989,73 @@ mod tests {
 	                            \x00\x00\x00\x00\
 	                            \x00\x00\x00\x00\
 	                            \x00\x00\x00\x00");
-        let mut cursor = Cursor::new(vec.clone());
+        let cursor = Cursor::new(vec.clone());
         let wave_reader = WaveReader::new(cursor).unwrap();
 
         // 16 bytes of data
         assert_eq!(44, wave_reader.data_begin);
         assert_eq!(60, wave_reader.data_end);
+    }
+
+    #[test]
+    fn test_reading_data_from_data_chunk_u8() {
+        let mut vec = Vec::new();
+        vec.extend_from_slice(b"RIFF    WAVE\
+	                            fmt \x10\x00\x00\x00\
+	                            \x01\x00\
+	                            \x01\x00\
+	                            \x44\xAC\x00\x00\
+	                            \x00\x00\x00\x00\
+	                            \x00\x00\
+	                            \x08\x00\
+	                            data\x10\x00\x00\x00\
+	                            \x00\x01\x02\x03\
+	                            \x04\x05\x06\x07\
+	                            \x08\x09\x0A\x0B\
+	                            \x0C\x0D\x0E\x0F");
+
+        let cursor = Cursor::new(vec.clone());
+        let mut wave_reader = WaveReader::new(cursor).unwrap();
+
+        // Buf size 0
+        let mut empty_buf: [u8; 0] = [0; 0];
+        let empty_read_result = wave_reader.read_samples_as_u8(&mut empty_buf).unwrap();
+        assert_eq!(0, empty_read_result);
+
+        // Buf size less than remaining:
+        let mut small_buf: [u8; 4] = [0; 4];
+        let small_read_result = wave_reader.read_samples_as_u8(&mut small_buf).unwrap();
+        assert_eq!(4, small_read_result);
+
+        assert_eq!(0, small_buf[0]);
+        assert_eq!(1, small_buf[1]);
+        assert_eq!(2, small_buf[2]);
+        assert_eq!(3, small_buf[3]);
+
+        // Buf size greater than remaining
+        let mut large_buf: [u8; 64] = [0; 64];
+        let large_read_result = wave_reader.read_samples_as_u8(&mut large_buf).unwrap();
+        assert_eq!(12, large_read_result);
+
+        for i in 0..12 {
+            assert_eq!(i + 4 as u8, large_buf[i as usize]);
+        }
+
+        // Initialize a new wave reader so we can test one more scenario
+        let cursor = Cursor::new(vec.clone());
+        let mut wave_reader = WaveReader::new(cursor).unwrap();
+
+        // First, a small read:
+        let mut small_buf: [u8; 2] = [0; 2];
+        let _ = wave_reader.read_samples_as_u8(&mut small_buf).unwrap();
+
+        // Buf size equal to remaining
+        let mut matching_buf: [u8; 14] = [0; 14];
+        let matching_read_result = wave_reader.read_samples_as_u8(&mut matching_buf).unwrap();
+        assert_eq!(14, matching_read_result);
+
+        for i in 0..14 {
+            assert_eq!(i + 2 as u8, matching_buf[i as usize]);
+        }
     }
 }
