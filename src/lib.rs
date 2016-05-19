@@ -48,6 +48,9 @@ pub enum FormatErrorKind {
     SampleRateIsZero,
     /// Only 8-bit, 16-bit, 24-bit and 32-bit PCM files are supported.
     UnsupportedBitsPerSample(u16),
+    /// We don't currently support extended PCM wave files where the actual
+    /// bits per sample is less than the container size.
+    InvalidBitsPerSample(u16, u16),
 }
 
 impl FormatErrorKind {
@@ -60,6 +63,9 @@ impl FormatErrorKind {
             FormatErrorKind::NumChannelsIsZero => "Number of channels is zero",
             FormatErrorKind::SampleRateIsZero => "Sample rate is zero",
             FormatErrorKind::UnsupportedBitsPerSample(_) => "Unsupported bits per sample",
+            FormatErrorKind::InvalidBitsPerSample(_, _) => {
+                "A bits per sample of less than the container size is not currently supported"
+            }
         }
     }
 }
@@ -158,6 +164,14 @@ trait WaveReader: Read + Seek {
         // Ignore block align. We don't need it and we won't validate it for now.
         let _ = try!(self.read_u16::<LittleEndian>());
         let bits_per_sample = try!(self.read_u16::<LittleEndian>());
+
+        match format {
+            // If a standard file, skip over the rest of the fmt subchunk, if present.
+            Format::UncompressedPcm => try!(self.skip_over_remainder(16, fmt_subchunk_size)),
+            // If an extended file, we also need to validate the extended fields.
+            Format::Extended => try!(self.validate_extended_format(bits_per_sample)),
+        }
+
         if num_channels == 0 {
             return Err(ReadError::Format(FormatErrorKind::NumChannelsIsZero));
         } else if sample_rate == 0 {
@@ -173,6 +187,38 @@ trait WaveReader: Read + Seek {
             sample_rate: sample_rate,
             bits_per_sample: bits_per_sample,
         })
+    }
+
+    fn validate_extended_format(&mut self, bits_per_sample: u16) -> ReadResult<()> {
+        // Validate the extended information.
+        let extra_info_size = try!(self.read_u32::<LittleEndian>());
+        try!(validate_fmt_header_is_large_enough(extra_info_size, 22));
+
+        // Read in the extended format fields.
+        let sample_info = try!(self.read_u16::<LittleEndian>());
+        // Ignore channel mask.
+        let _ = try!(self.read_u32::<LittleEndian>());
+        // Validate the subformat.
+        let subformat = try!(validate_pcm_subformat(try!(self.read_u16::<LittleEndian>())));
+        // Ignore the rest of the GUID.
+        try!(self.skip_over_remainder(8, extra_info_size));
+
+        if sample_info != bits_per_sample {
+            // We don't currently support wave files where the bits per sample
+            // doesn't entirely fill the allocated bits per sample.
+            return Err(ReadError::Format(FormatErrorKind::InvalidBitsPerSample(bits_per_sample,
+                                                                               sample_info)));
+        }
+
+        Ok(())
+    }
+
+    fn skip_over_remainder(&mut self, read_so_far: u32, size: u32) -> ReadResult<()> {
+        if read_so_far < size {
+            let remainder = size - read_so_far;
+            try!(self.seek(SeekFrom::Current(remainder.into())));
+        }
+        Ok(())
     }
 
     fn validate_is_riff_file(&mut self) -> ReadResult<()> {
@@ -231,7 +277,7 @@ impl<T> WaveReader for T where T: Read + Seek {}
 #[cfg(test)]
 mod tests {
     use std::io;
-    use std::io::Cursor;
+    use std::io::{Cursor, Read};
 
     use {FORMAT_UNCOMPRESSED_PCM, FORMAT_EXTENDED};
     use {Format, FormatErrorKind, PcmFormat, ReadError, WaveReader};
@@ -534,5 +580,176 @@ mod tests {
                             bits_per_sample: 8,
                         }),
                         cursor.read_wave_header());
+    }
+
+    // Extended format
+
+    #[test]
+    fn test_validate_pcm_header_extended_format_too_small() {
+        let mut vec = Vec::new();
+        vec.extend_from_slice(b"RIFF    WAVE\
+		                        fmt \x10\x00\x00\x00\
+		                        \xFE\xFF\
+		                        \x01\x00\
+		                        \x44\xAC\x00\x00\
+		                        \x00\x00\x00\x00\
+		                        \x00\x00\
+		                        \x08\x00\
+		                        \x02\x00\x00\x00");
+        let mut cursor = Cursor::new(vec.clone());
+
+        assert_matches!(Err(ReadError::Format(FormatErrorKind::FmtChunkTooShort)),
+                        cursor.read_wave_header());
+    }
+
+    #[test]
+    fn test_validate_pcm_header_extended_format_not_pcm_format() {
+        let mut vec = Vec::new();
+        vec.extend_from_slice(b"RIFF    WAVE\
+		                        fmt \x10\x00\x00\x00\
+		                        \xFE\xFF\
+		                        \x01\x00\
+		                        \x44\xAC\x00\x00\
+		                        \x00\x00\x00\x00\
+		                        \x00\x00\
+		                        \x08\x00\
+		                        \x16\x00\x00\x00\
+		                        \x08\x00\
+		                        \x00\x00\x00\x00\
+		                        \x09\x00\x00\x00\x00\x00\x10\x00\x80\x00\x00\xAA\x00\x38\x9B\x71");
+        let mut cursor = Cursor::new(vec.clone());
+
+        assert_matches!(Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(_))),
+            			cursor.read_wave_header());
+    }
+
+    #[test]
+    fn test_validate_pcm_header_extended_format_sample_rates_dont_match() {
+        let mut vec = Vec::new();
+        vec.extend_from_slice(b"RIFF    WAVE\
+		                        fmt \x10\x00\x00\x00\
+		                        \xFE\xFF\
+		                        \x01\x00\
+		                        \x44\xAC\x00\x00\
+		                        \x00\x00\x00\x00\
+		                        \x00\x00\
+		                        \x08\x00\
+		                        \x16\x00\x00\x00\
+		                        \x10\x00\
+		                        \x00\x00\x00\x00\
+		                        \x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00");
+        let mut cursor = Cursor::new(vec.clone());
+
+        assert_matches!(Err(ReadError::Format(FormatErrorKind::InvalidBitsPerSample(_, _))),
+                        cursor.read_wave_header());
+    }
+
+    #[test]
+    fn test_validate_pcm_header_extended_format_sample_rates_ok() {
+        let mut vec = Vec::new();
+        vec.extend_from_slice(b"RIFF    WAVE\
+	                            fmt \x10\x00\x00\x00\
+	                            \xFE\xFF\
+	                            \x01\x00\
+	                            \x44\xAC\x00\x00\
+	                            \x00\x00\x00\x00\
+	                            \x00\x00\
+	                            \x08\x00\
+	                            \x16\x00\x00\x00\
+	                            \x08\x00\
+	                            \x00\x00\x00\x00\
+	                            \x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00");
+        let mut cursor = Cursor::new(vec.clone());
+
+        assert_matches!(Ok(_), cursor.read_wave_header());
+    }
+
+    #[test]
+    fn test_validate_pcm_header_8bit_mono_example_extended() {
+        let mut vec = Vec::new();
+        vec.extend_from_slice(b"RIFF    WAVE\
+                         fmt \x10\x00\x00\x00\
+                         \xFE\xFF\
+                         \x01\x00\
+                         \x44\xAC\x00\x00\
+                         \x00\x00\x00\x00\
+                         \x00\x00\
+                         \x08\x00\
+                         \x16\x00\x00\x00\
+                         \x08\x00\
+                         \x00\x00\x00\x00\
+                         \x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00");
+        let mut cursor = Cursor::new(vec.clone());
+
+        assert_matches!(Ok(PcmFormat {
+                            num_channels: 1,
+                            sample_rate: 44100,
+                            bits_per_sample: 8,
+                        }),
+                        cursor.read_wave_header());
+    }
+
+    #[test]
+    fn test_validate_extended_format_too_short() {
+        // Extended size is less than 22 -- should fail.
+        let mut data = Cursor::new(b"\x0F\x00\x00\x00");
+        assert_matches!(Err(ReadError::Format(FormatErrorKind::FmtChunkTooShort)),
+                        data.validate_extended_format(16));
+    }
+
+    #[test]
+    fn test_validate_extended_format_not_pcm() {
+        let mut data = Cursor::new(b"\x16\x00\x00\x00\
+                                     \x10\x00\
+                                     \x00\x00\x00\x00\
+                                     \xFF\xFF\x00\x00\x00\x00\x00\x00\
+                                     \x00\x00\x00\x00\x00\x00\x00\x00");
+        assert_matches!(Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(_))),
+            			data.validate_extended_format(16));
+    }
+
+    #[test]
+    fn test_validate_extended_format_sample_rate_doesnt_match() {
+        let mut data = Cursor::new(b"\x16\x00\x00\x00\
+                                     \x0F\x00\
+                                     \x00\x00\x00\x00\
+                                     \x01\x00\x00\x00\x00\x00\x00\x00\
+                                     \x00\x00\x00\x00\x00\x00\x00\x00");
+        assert_matches!(Err(ReadError::Format(FormatErrorKind::InvalidBitsPerSample(_, _))),
+            			data.validate_extended_format(16));
+    }
+
+    #[test]
+    fn test_validate_extended_format_sample_rate_ok() {
+        let mut data = Cursor::new(b"\x16\x00\x00\x00\
+                                     \x10\x00\
+                                     \x00\x00\x00\x00\
+                                     \x01\x00\x00\x00\x00\x00\x00\x00\
+                                     \x00\x00\x00\x00\x00\x00\x00\x00");
+        assert_matches!(Ok(()), data.validate_extended_format(16));
+    }
+
+    // Misc tests
+
+    #[test]
+    fn test_skip_over_remainder() {
+        let mut data = Cursor::new(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+        let mut buf = [0u8; 4];
+
+        let _ = data.skip_over_remainder(0, 0);
+        let _ = data.read(&mut buf);
+        assert_eq!(b"ABCD", &buf);
+
+        let _ = data.skip_over_remainder(4, 4);
+        let _ = data.read(&mut buf);
+        assert_eq!(b"EFGH", &buf);
+
+        let _ = data.skip_over_remainder(0, 4);
+        let _ = data.read(&mut buf);
+        assert_eq!(b"MNOP", &buf);
+
+        let _ = data.skip_over_remainder(4, 8);
+        let _ = data.read(&mut buf);
+        assert_eq!(b"UVWX", &buf);
     }
 }
