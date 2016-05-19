@@ -44,6 +44,10 @@ pub enum FormatErrorKind {
     FmtChunkTooShort,
     /// The number of channels is zero, which is invalid.
     NumChannelsIsZero,
+    /// The sample rate is zero, which is invalid.
+    SampleRateIsZero,
+    /// Only 8-bit, 16-bit, 24-bit and 32-bit PCM files are supported.
+    UnsupportedBitsPerSample(u16),
 }
 
 impl FormatErrorKind {
@@ -54,6 +58,8 @@ impl FormatErrorKind {
             FormatErrorKind::NotAnUncompressedPcmWaveFile(_) => "Not an uncompressed wave file",
             FormatErrorKind::FmtChunkTooShort => "fmt_ chunk is too short",
             FormatErrorKind::NumChannelsIsZero => "Number of channels is zero",
+            FormatErrorKind::SampleRateIsZero => "Sample rate is zero",
+            FormatErrorKind::UnsupportedBitsPerSample(_) => "Unsupported bits per sample",
         }
     }
 }
@@ -146,11 +152,27 @@ trait WaveReader: Read + Seek {
 
         // We passed the format check; read in the PCM format fields.
         let num_channels = try!(self.read_u16::<LittleEndian>());
+        let sample_rate = try!(self.read_u32::<LittleEndian>());
+        // Ignore byte rate. We don't need it and we won't validate it for now.
+        let _ = try!(self.read_u32::<LittleEndian>());
+        // Ignore block align. We don't need it and we won't validate it for now.
+        let _ = try!(self.read_u16::<LittleEndian>());
+        let bits_per_sample = try!(self.read_u16::<LittleEndian>());
         if num_channels == 0 {
             return Err(ReadError::Format(FormatErrorKind::NumChannelsIsZero));
+        } else if sample_rate == 0 {
+            return Err(ReadError::Format(FormatErrorKind::SampleRateIsZero));
+        } else if bits_per_sample != 8 && bits_per_sample != 16 
+        	   && bits_per_sample != 24 && bits_per_sample != 32 {
+            return Err(ReadError::Format(
+            	FormatErrorKind::UnsupportedBitsPerSample(bits_per_sample)));
         }
-        // Bogus until we complete our validation checks
-        Err(ReadError::Format(FormatErrorKind::NotARiffFile))
+
+        Ok(PcmFormat {
+            num_channels: num_channels,
+            sample_rate: sample_rate,
+            bits_per_sample: bits_per_sample,
+        })
     }
 
     fn validate_is_riff_file(&mut self) -> ReadResult<()> {
@@ -415,5 +437,57 @@ mod tests {
                                      \x00\x00" as &[u8]);
         assert_matches!(Err(ReadError::Format(FormatErrorKind::NumChannelsIsZero)),
                         data.read_wave_header());
+    }
+
+    #[test]
+    fn test_validate_pcm_header_dont_accept_zero_sample_rate() {
+        let mut data = Cursor::new(b"RIFF    WAVE\
+                                     fmt \x10\x00\x00\x00\
+                                     \x01\x00\
+                                     \x01\x00\
+                                     \x00\x00\x00\x00\
+                                     \x00\x00\x00\x00\
+                                     \x00\x00\
+                                     \x00\x00" as &[u8]);
+        assert_matches!(Err(ReadError::Format(FormatErrorKind::SampleRateIsZero)),
+                        data.read_wave_header());
+    }
+
+    #[test]
+    fn test_validate_pcm_header_validate_bits_per_sample_standard() {
+        let mut vec = Vec::new();
+        vec.extend_from_slice(b"RIFF    WAVE\
+                         fmt \x10\x00\x00\x00\
+                         \x01\x00\
+                         \x01\x00\
+                         \x44\xAC\x00\x00\
+                         \x00\x00\x00\x00\
+                         \x00\x00\
+                         \x08\x00");
+
+        let mut cursor = Cursor::new(vec.clone());
+        assert_matches!(Ok(_), cursor.read_wave_header());
+
+        vec[34] = 16;
+        let mut cursor = Cursor::new(vec.clone());
+        assert_matches!(Ok(_), cursor.read_wave_header());
+
+        vec[34] = 24;
+        let mut cursor = Cursor::new(vec.clone());
+        assert_matches!(Ok(_), cursor.read_wave_header());
+
+        vec[34] = 32;
+        let mut cursor = Cursor::new(vec.clone());
+        assert_matches!(Ok(_), cursor.read_wave_header());
+
+        vec[34] = 48;
+        let mut cursor = Cursor::new(vec.clone());
+        assert_matches!(Err(ReadError::Format(FormatErrorKind::UnsupportedBitsPerSample(_))),
+            			cursor.read_wave_header());
+
+        vec[34] = 0;
+        let mut cursor = Cursor::new(vec.clone());
+        assert_matches!(Err(ReadError::Format(FormatErrorKind::UnsupportedBitsPerSample(_))),
+            			cursor.read_wave_header());
     }
 }
