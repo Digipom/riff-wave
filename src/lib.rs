@@ -458,28 +458,38 @@ impl<T> WaveReader<T>
         self.read_sample(|reader| reader.read_u8())
     }
 
-    fn read_sample<F, S>(&mut self, read_sample_impl: F) -> io::Result<Option<S>>
+    fn read_sample<F, S>(&mut self, read_data: F) -> io::Result<Option<S>>
         where F: Fn(&mut T) -> io::Result<S>
     {
         let remaining = self.remaining();
         if remaining == 0 {
             Ok(None)
         } else {
-            let val = try!(read_sample_impl(&mut self.reader));
+            let val = try!(read_data(&mut self.reader));
             self.current_data_offset += mem::size_of::<S>() as u64;
             Ok(Some(val))
         }
     }
 
+    fn remaining(&self) -> u64 {
+        self.data_end - self.current_data_offset
+    }
+
     /// Reads several samples as unsigned 8-bit values. Returns the number of
     /// samples read, or an io error if one occurred before data was read.
     pub fn read_samples_as_u8(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.read_samples(buf, |wave_reader| WaveReader::read_sample_u8(wave_reader))
+    }
+
+    fn read_samples<F, S>(&mut self, buf: &mut [S], read_sample_impl: F) -> io::Result<usize>
+        where F: Fn(&mut Self) -> io::Result<Option<S>>
+    {
         let mut successfully_read = 0;
 
-        for byte in &mut buf[..] {
-            match self.read_sample_u8() {
+        for out in &mut buf[..] {
+            match read_sample_impl(self) {
                 Ok(Some(sample)) => {
-                    *byte = sample;
+                    *out = sample;
                     successfully_read = successfully_read + 1;
                 }
                 Ok(None) => {
@@ -496,10 +506,6 @@ impl<T> WaveReader<T>
         }
 
         Ok(successfully_read)
-    }
-
-    fn remaining(&self) -> u64 {
-        self.data_end - self.current_data_offset
     }
 }
 
