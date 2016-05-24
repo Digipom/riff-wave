@@ -277,34 +277,25 @@ fn validate_fmt_header_is_large_enough(size: u32, min_size: u32) -> ReadResult<(
 
 trait ReadWaveExt: Read + Seek {
     fn read_wave_header(&mut self) -> ReadResult<PcmFormat> {
-        // Validate the beginning of the file
         try!(self.validate_is_riff_file());
         try!(self.validate_is_wave_file());
 
-        // Scan for the "fmt " chunk, and validate the format. Check the header
-        // size before and after the format check so we can present the
-        // appropriate error types.
+        // The fmt subchunk should be at least 14 bytes for wave files, and 16 bytes
+        // for PCM wave files. The check is done twice so an appropriate error message
+        // can be returned depending on the type of file.
         let fmt_subchunk_size = try!(self.skip_until_subchunk(b"fmt "));
-        // We need at least 14 bytes for wave files.
         try!(validate_fmt_header_is_large_enough(fmt_subchunk_size, 14));
         let format = try!(validate_pcm_format(try!(self.read_u16::<LittleEndian>())));
-        // Now that we've validated the PCM format so that we know this is an
-        // uncompressed PCM file, we also need to be able to read the bits per sample.
         try!(validate_fmt_header_is_large_enough(fmt_subchunk_size, 16));
 
-        // We passed the format check; read in the PCM format fields.
         let num_channels = try!(self.read_u16::<LittleEndian>());
         let sample_rate = try!(self.read_u32::<LittleEndian>());
-        // Ignore byte rate. We don't need it and we won't validate it for now.
-        let _ = try!(self.read_u32::<LittleEndian>());
-        // Ignore block align. We don't need it and we won't validate it for now.
-        let _ = try!(self.read_u16::<LittleEndian>());
+        let _ = try!(self.read_u32::<LittleEndian>());              // Byte rate. Not validated for now.
+        let _ = try!(self.read_u16::<LittleEndian>());              // Block align. Not validated for now.
         let bits_per_sample = try!(self.read_u16::<LittleEndian>());
 
-        match format {
-            // If a standard file, skip over the rest of the fmt subchunk, if present.
-            Format::UncompressedPcm => try!(self.skip_over_remainder(16, fmt_subchunk_size)),
-            // If an extended file, we also need to validate the extended fields.
+        match format {            
+            Format::UncompressedPcm => try!(self.skip_over_remainder(16, fmt_subchunk_size)),            
             Format::Extended => try!(self.validate_extended_format(bits_per_sample)),
         }
 
@@ -326,18 +317,13 @@ trait ReadWaveExt: Read + Seek {
     }
 
     fn validate_extended_format(&mut self, bits_per_sample: u16) -> ReadResult<()> {
-        // Validate the extended information.
         let extra_info_size = try!(self.read_u16::<LittleEndian>());
         try!(validate_fmt_header_is_large_enough(extra_info_size.into(), 22));
 
-        // Read in the extended format fields.
         let sample_info = try!(self.read_u16::<LittleEndian>());
-        // Ignore channel mask.
-        let _ = try!(self.read_u32::<LittleEndian>());
-        // Validate the subformat.
+        let _ = try!(self.read_u32::<LittleEndian>());              // Channel mask, currently ignored.
         let _ = try!(validate_pcm_subformat(try!(self.read_u16::<LittleEndian>())));
-        // Ignore the rest of the GUID.
-        try!(self.skip_over_remainder(8, extra_info_size.into()));
+        try!(self.skip_over_remainder(8, extra_info_size.into()));  // Ignore the rest of the GUID.
 
         if sample_info != bits_per_sample {
             // We don't currently support wave files where the bits per sample
