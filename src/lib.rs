@@ -451,18 +451,44 @@ impl<T> WaveReader<T>
         })
     }
 
-    pub fn read_samples_as_u8(&mut self, buf: &mut [u8]) -> ReadResult<usize> {
+    /// Reads a single sample as an unsigned 8-bit value. If we've reached the
+    /// end of the data chunk, then this will return Ok(None).
+    pub fn read_sample_u8(&mut self) -> io::Result<Option<u8>> {
         let remaining = self.remaining();
-        if remaining < buf.len() as u64 {
-            let mut slice = &mut buf[0..remaining as usize];
-            let read = try!(self.reader.read(slice));
-            self.current_data_offset += read as u64;
-            Ok(read)
+        if remaining == 0 {
+            Ok(None)
         } else {
-            let read = try!(self.reader.read(buf));
-            self.current_data_offset += read as u64;
-            Ok(read)
+            let val = try!(self.reader.read_u8());
+            self.current_data_offset += 1;
+            Ok(Some(val))
         }
+    }
+
+    /// Reads several samples as unsigned 8-bit values. Returns the number of
+    /// samples read, or an io error if one occurred before data was read.
+    pub fn read_samples_as_u8(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let mut successfully_read = 0;
+
+        for byte in &mut buf[..] {
+            match self.read_sample_u8() {
+                Ok(Some(sample)) => {
+                    *byte = sample;
+                    successfully_read = successfully_read + 1;
+                }
+                Ok(None) => {
+                    break;
+                }
+                Err(err) => {
+                    if successfully_read == 0 {
+                        return Err(err);
+                    } else {
+                        break;
+                    }
+                }                                    
+            }
+        }
+
+        Ok(successfully_read)
     }
 
     fn remaining(&self) -> u64 {
