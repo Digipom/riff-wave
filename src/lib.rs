@@ -458,6 +458,12 @@ impl<T> WaveReader<T>
         self.read_sample(|reader| reader.read_u8())
     }
 
+    /// Reads a single sample as a signed 16-bit value. If we've reached the
+    /// end of the data chunk, then this will return Ok(None).
+    pub fn read_sample_i16(&mut self) -> io::Result<Option<i16>> {
+        self.read_sample(|reader| reader.read_i16::<LittleEndian>())
+    }
+
     fn read_sample<F, S>(&mut self, read_data: F) -> io::Result<Option<S>>
         where F: Fn(&mut T) -> io::Result<S>
     {
@@ -479,6 +485,12 @@ impl<T> WaveReader<T>
     /// samples read, or an io error if one occurred before data was read.
     pub fn read_samples_as_u8(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.read_samples(buf, |wave_reader| WaveReader::read_sample_u8(wave_reader))
+    }
+
+    /// Reads several samples as signed 16-bit values. Returns the number of
+    /// samples read, or an io error if one occurred before data was read.
+    pub fn read_samples_as_i16(&mut self, buf: &mut [i16]) -> io::Result<usize> {
+        self.read_samples(buf, |wave_reader| WaveReader::read_sample_i16(wave_reader))
     }
 
     fn read_samples<F, S>(&mut self, buf: &mut [S], read_sample_impl: F) -> io::Result<usize>
@@ -1095,6 +1107,67 @@ mod tests {
 
         for i in 0..14 {
             assert_eq!(i + 2 as u8, matching_buf[i as usize]);
+        }
+    }
+
+    #[test]
+    fn test_reading_data_from_data_chunk_i16() {
+        let mut vec = Vec::new();
+        vec.extend_from_slice(b"RIFF    WAVE\
+                                fmt \x10\x00\x00\x00\
+                                \x01\x00\
+                                \x01\x00\
+                                \x88\x58\x01\x00\
+                                \x00\x00\x00\x00\
+                                \x00\x00\
+                                \x10\x00\
+                                data\x10\x00\x00\x00\
+                                \x00\x01\x01\x01\
+                                \x02\x01\x03\x01\
+                                \x04\x01\x05\x01\
+                                \x06\x01\x07\x01");
+
+        let cursor = Cursor::new(vec.clone());
+        let mut wave_reader = WaveReader::new(cursor).unwrap();
+
+        // Buf size 0
+        let mut empty_buf: [i16; 0] = [0; 0];
+        let empty_read_result = wave_reader.read_samples_as_i16(&mut empty_buf).unwrap();
+        assert_eq!(0, empty_read_result);
+
+        // Buf size less than remaining:
+        let mut small_buf: [i16; 3] = [0; 3];
+        let small_read_result = wave_reader.read_samples_as_i16(&mut small_buf).unwrap();
+        assert_eq!(3, small_read_result);
+
+        assert_eq!(256, small_buf[0]);
+        assert_eq!(257, small_buf[1]);
+        assert_eq!(258, small_buf[2]);
+
+        // Buf size greater than remaining
+        let mut large_buf: [i16; 64] = [0; 64];
+        let large_read_result = wave_reader.read_samples_as_i16(&mut large_buf).unwrap();
+        assert_eq!(5, large_read_result);
+
+        for i in 0..5 {
+            assert_eq!(i + 3 + 256 as i16, large_buf[i as usize]);
+        }
+
+        // Initialize a new wave reader so we can test one more scenario
+        let cursor = Cursor::new(vec.clone());
+        let mut wave_reader = WaveReader::new(cursor).unwrap();
+
+        // First, a small read:
+        let mut small_buf: [i16; 2] = [0; 2];
+        let _ = wave_reader.read_samples_as_i16(&mut small_buf).unwrap();
+
+        // Buf size equal to remaining
+        let mut matching_buf: [i16; 6] = [0; 6];
+        let matching_read_result = wave_reader.read_samples_as_i16(&mut matching_buf).unwrap();
+        assert_eq!(6, matching_read_result);
+
+        for i in 0..6 {
+            assert_eq!(i + 2 + 256 as i16, matching_buf[i as usize]);
         }
     }
 }
