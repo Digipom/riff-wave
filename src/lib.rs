@@ -140,6 +140,7 @@ use std::error;
 use std::fmt;
 use std::io;
 use std::io::{Read, Seek, SeekFrom};
+use std::mem;
 use std::result;
 
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -454,12 +455,18 @@ impl<T> WaveReader<T>
     /// Reads a single sample as an unsigned 8-bit value. If we've reached the
     /// end of the data chunk, then this will return Ok(None).
     pub fn read_sample_u8(&mut self) -> io::Result<Option<u8>> {
+        self.read_sample(|reader| reader.read_u8())
+    }
+
+    fn read_sample<F, S>(&mut self, read_sample_impl: F) -> io::Result<Option<S>>
+        where F: Fn(&mut T) -> io::Result<S>
+    {
         let remaining = self.remaining();
         if remaining == 0 {
             Ok(None)
         } else {
-            let val = try!(self.reader.read_u8());
-            self.current_data_offset += 1;
+            let val = try!(read_sample_impl(&mut self.reader));
+            self.current_data_offset += mem::size_of::<S>() as u64;
             Ok(Some(val))
         }
     }
