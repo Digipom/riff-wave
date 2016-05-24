@@ -997,6 +997,60 @@ mod tests {
 
     // Wave reader tests
 
+    macro_rules! define_test_reading_not_matching_sizes_fn {
+        ($name: ident, $num_type: ty, $read_samples: path) => {
+            fn $name(raw_data: &[u8], expected_results: &[$num_type], bytes_per_num: u16) {
+                let vec = create_standard_in_memory_riff_wave(1, 44100, bytes_per_num * 8, raw_data);
+                let cursor = Cursor::new(vec.clone());
+                let mut wave_reader = WaveReader::new(cursor).unwrap();
+
+                // Buf size 0
+                let mut buf: [$num_type; 0] = [0; 0];
+                let read_count = $read_samples(&mut wave_reader, &mut buf).unwrap();
+                assert_eq!(0, read_count);
+
+                // Buf size less than remaining:
+                let mut buf: [$num_type; 2] = [0; 2];
+                let read_count = $read_samples(&mut wave_reader, &mut buf).unwrap();
+                assert_eq!(buf.len(), read_count);
+
+                for i in 0..buf.len() {
+                    assert_eq!(expected_results[i], buf[i]);
+                }
+
+                // Buf size greater than remaining
+                let already_read_count = buf.len();
+                let mut buf: [$num_type; 64] = [0; 64];
+                let read_count = $read_samples(&mut wave_reader, &mut buf).unwrap();
+                let expected_remaining_count = expected_results.len() - already_read_count;
+                assert_eq!(expected_remaining_count, read_count);
+
+                for i in 0..expected_remaining_count {
+                    assert_eq!(expected_results[i + already_read_count], buf[i]);
+                }
+            }
+        }
+    }
+
+    macro_rules! define_test_reading_matching_size_fn {
+           ($name: ident, $num_type: ty, $array_size: expr, $read_samples: path) => {
+            fn $name(raw_data: &[u8], expected_results: &[$num_type], bytes_per_num: u16) {
+                let vec = create_standard_in_memory_riff_wave(1, 44100, bytes_per_num * 8, raw_data);
+                let cursor = Cursor::new(vec.clone());
+                let mut wave_reader = WaveReader::new(cursor).unwrap();
+
+                // Buf size equal to remaining
+                let mut buf: [$num_type; $array_size] = [0; $array_size];
+                let read_count = $read_samples(&mut wave_reader, &mut buf).unwrap();
+                assert_eq!(expected_results.len(), read_count);
+
+                for i in 0..$array_size {
+                    assert_eq!(expected_results[i], buf[i]);
+                }
+            }
+        }
+    }
+
     #[test]
     fn test_reading_data_from_data_chunk_u8() {
         let raw_data = b"\x00\x01\x02\x03\
@@ -1004,50 +1058,15 @@ mod tests {
                          \x08\x09\x0A\x0B\
                          \x0C\x0D\x0E\x0F";
 
-        let vec = create_standard_in_memory_riff_wave(1, 44100, 8, raw_data);
-        let cursor = Cursor::new(vec.clone());
-        let mut wave_reader = WaveReader::new(cursor).unwrap();
+        let expected_results = [ 0,  1,  2,  3, 
+                                 4,  5,  6,  7, 
+                                 8,  9, 10, 11, 
+                                12, 13, 14, 15];
 
-        // Buf size 0
-        let mut empty_buf: [u8; 0] = [0; 0];
-        let empty_read_result = wave_reader.read_samples_as_u8(&mut empty_buf).unwrap();
-        assert_eq!(0, empty_read_result);
-
-        // Buf size less than remaining:
-        let mut small_buf: [u8; 4] = [0; 4];
-        let small_read_result = wave_reader.read_samples_as_u8(&mut small_buf).unwrap();
-        assert_eq!(4, small_read_result);
-
-        assert_eq!(0, small_buf[0]);
-        assert_eq!(1, small_buf[1]);
-        assert_eq!(2, small_buf[2]);
-        assert_eq!(3, small_buf[3]);
-
-        // Buf size greater than remaining
-        let mut large_buf: [u8; 64] = [0; 64];
-        let large_read_result = wave_reader.read_samples_as_u8(&mut large_buf).unwrap();
-        assert_eq!(12, large_read_result);
-
-        for i in 0..12 {
-            assert_eq!(i + 4 as u8, large_buf[i as usize]);
-        }
-
-        // Initialize a new wave reader so we can test one more scenario
-        let cursor = Cursor::new(vec.clone());
-        let mut wave_reader = WaveReader::new(cursor).unwrap();
-
-        // First, a small read:
-        let mut small_buf: [u8; 2] = [0; 2];
-        let _ = wave_reader.read_samples_as_u8(&mut small_buf).unwrap();
-
-        // Buf size equal to remaining
-        let mut matching_buf: [u8; 14] = [0; 14];
-        let matching_read_result = wave_reader.read_samples_as_u8(&mut matching_buf).unwrap();
-        assert_eq!(14, matching_read_result);
-
-        for i in 0..14 {
-            assert_eq!(i + 2 as u8, matching_buf[i as usize]);
-        }
+        define_test_reading_not_matching_sizes_fn!(unmatching_read_sizes, u8, WaveReader::read_samples_as_u8);
+        define_test_reading_matching_size_fn!(matching_read_sizes, u8, 16, WaveReader::read_samples_as_u8);
+        unmatching_read_sizes(raw_data, &expected_results, 1);
+        matching_read_sizes(raw_data, &expected_results, 1);
     }
 
     #[test]
@@ -1056,50 +1075,15 @@ mod tests {
                          \x02\x01\x03\x01\
                          \x04\x01\x05\x01\
                          \x06\x01\x07\x01";
+        let expected_results = [256, 257, 
+                                258, 259, 
+                                260, 261, 
+                                262, 263];
 
-        let vec = create_standard_in_memory_riff_wave(1, 44100, 16, raw_data);
-        let cursor = Cursor::new(vec.clone());
-        let mut wave_reader = WaveReader::new(cursor).unwrap();
-
-        // Buf size 0
-        let mut empty_buf: [i16; 0] = [0; 0];
-        let empty_read_result = wave_reader.read_samples_as_i16(&mut empty_buf).unwrap();
-        assert_eq!(0, empty_read_result);
-
-        // Buf size less than remaining:
-        let mut small_buf: [i16; 3] = [0; 3];
-        let small_read_result = wave_reader.read_samples_as_i16(&mut small_buf).unwrap();
-        assert_eq!(3, small_read_result);
-
-        assert_eq!(256, small_buf[0]);
-        assert_eq!(257, small_buf[1]);
-        assert_eq!(258, small_buf[2]);
-
-        // Buf size greater than remaining
-        let mut large_buf: [i16; 64] = [0; 64];
-        let large_read_result = wave_reader.read_samples_as_i16(&mut large_buf).unwrap();
-        assert_eq!(5, large_read_result);
-
-        for i in 0..5 {
-            assert_eq!(i + 3 + 256 as i16, large_buf[i as usize]);
-        }
-
-        // Initialize a new wave reader so we can test one more scenario
-        let cursor = Cursor::new(vec.clone());
-        let mut wave_reader = WaveReader::new(cursor).unwrap();
-
-        // First, a small read:
-        let mut small_buf: [i16; 2] = [0; 2];
-        let _ = wave_reader.read_samples_as_i16(&mut small_buf).unwrap();
-
-        // Buf size equal to remaining
-        let mut matching_buf: [i16; 6] = [0; 6];
-        let matching_read_result = wave_reader.read_samples_as_i16(&mut matching_buf).unwrap();
-        assert_eq!(6, matching_read_result);
-
-        for i in 0..6 {
-            assert_eq!(i + 2 + 256 as i16, matching_buf[i as usize]);
-        }
+        define_test_reading_not_matching_sizes_fn!(unmatching_read_sizes, i16, WaveReader::read_samples_as_i16);
+        define_test_reading_matching_size_fn!(matching_read_sizes, i16, 8, WaveReader::read_samples_as_i16);
+        unmatching_read_sizes(raw_data, &expected_results, 2);
+        matching_read_sizes(raw_data, &expected_results, 2);
     }
 
     #[test]
@@ -1109,50 +1093,16 @@ mod tests {
                          \x03\x01\x02\
                          \x04\x01\x02\
                          \x05\x01\x02";
+        let expected_results = [65536 * 2 + 256 + 1 + 0,
+                                65536 * 2 + 256 + 1 + 1,
+                                65536 * 2 + 256 + 1 + 2,
+                                65536 * 2 + 256 + 1 + 3,
+                                65536 * 2 + 256 + 1 + 4];
 
-        let vec = create_standard_in_memory_riff_wave(1, 44100, 24, raw_data);
-        let cursor = Cursor::new(vec.clone());
-        let mut wave_reader = WaveReader::new(cursor).unwrap();
-
-        // Buf size 0
-        let mut empty_buf: [i32; 0] = [0; 0];
-        let empty_read_result = wave_reader.read_samples_as_i24(&mut empty_buf).unwrap();
-        assert_eq!(0, empty_read_result);
-
-        // Buf size less than remaining:
-        let mut small_buf: [i32; 3] = [0; 3];
-        let small_read_result = wave_reader.read_samples_as_i24(&mut small_buf).unwrap();
-        assert_eq!(3, small_read_result);
-
-        assert_eq!(65536 * 2 + 256 + 1 + 0, small_buf[0]);
-        assert_eq!(65536 * 2 + 256 + 1 + 1, small_buf[1]);
-        assert_eq!(65536 * 2 + 256 + 1 + 2, small_buf[2]);
-
-        // Buf size greater than remaining
-        let mut large_buf: [i32; 64] = [0; 64];
-        let large_read_result = wave_reader.read_samples_as_i24(&mut large_buf).unwrap();
-        assert_eq!(2, large_read_result);
-
-        for i in 0..2 {
-            assert_eq!(65536 * 2 + 256 + 1 + 3 + i, large_buf[i as usize]);
-        }
-
-        // Initialize a new wave reader so we can test one more scenario
-        let cursor = Cursor::new(vec.clone());
-        let mut wave_reader = WaveReader::new(cursor).unwrap();
-
-        // First, a small read:
-        let mut small_buf: [i32; 2] = [0; 2];
-        let _ = wave_reader.read_samples_as_i24(&mut small_buf).unwrap();
-
-        // Buf size equal to remaining
-        let mut matching_buf: [i32; 6] = [0; 6];
-        let matching_read_result = wave_reader.read_samples_as_i24(&mut matching_buf).unwrap();
-        assert_eq!(3, matching_read_result);
-
-        for i in 0..3 {
-            assert_eq!(65536 * 2 + 256 + 1 + 2 + i, matching_buf[i as usize]);
-        }
+        define_test_reading_not_matching_sizes_fn!(unmatching_read_sizes, i32, WaveReader::read_samples_as_i24);
+        define_test_reading_matching_size_fn!(matching_read_sizes, i32, 5, WaveReader::read_samples_as_i24);
+        unmatching_read_sizes(raw_data, &expected_results, 3);
+        matching_read_sizes(raw_data, &expected_results, 3);
     }
 
     #[test]
@@ -1161,47 +1111,15 @@ mod tests {
                          \x04\x05\x06\x07\
                          \x08\x09\x0A\x0B\
                          \x0C\x0D\x0E\x0F";
+        let expected_results = [ 50462976, 
+                                117835012, 
+                                185207048, 
+                                252579084];
 
-        let vec = create_standard_in_memory_riff_wave(1, 44100, 32, raw_data);
-        let cursor = Cursor::new(vec.clone());
-        let mut wave_reader = WaveReader::new(cursor).unwrap();
-
-        // Buf size 0
-        let mut empty_buf: [i32; 0] = [0; 0];
-        let empty_read_result = wave_reader.read_samples_as_i32(&mut empty_buf).unwrap();
-        assert_eq!(0, empty_read_result);
-
-        // Buf size less than remaining:
-        let mut small_buf: [i32; 3] = [0; 3];
-        let small_read_result = wave_reader.read_samples_as_i32(&mut small_buf).unwrap();
-        assert_eq!(3, small_read_result);
-
-        assert_eq!(50462976, small_buf[0]);
-        assert_eq!(117835012, small_buf[1]);
-        assert_eq!(185207048, small_buf[2]);
-
-        // Buf size greater than remaining
-        let mut large_buf: [i32; 64] = [0; 64];
-        let large_read_result = wave_reader.read_samples_as_i32(&mut large_buf).unwrap();
-        assert_eq!(1, large_read_result);
-        assert_eq!(252579084, large_buf[0]);
-
-        // Initialize a new wave reader so we can test one more scenario
-        let cursor = Cursor::new(vec.clone());
-        let mut wave_reader = WaveReader::new(cursor).unwrap();
-
-        // First, a small read:
-        let mut small_buf: [i32; 1] = [0; 1];
-        let _ = wave_reader.read_samples_as_i32(&mut small_buf).unwrap();
-
-        // Buf size equal to remaining
-        let mut matching_buf: [i32; 3] = [0; 3];
-        let matching_read_result = wave_reader.read_samples_as_i32(&mut matching_buf).unwrap();
-        assert_eq!(3, matching_read_result);
-
-        assert_eq!(117835012, matching_buf[0]);
-        assert_eq!(185207048, matching_buf[1]);
-        assert_eq!(252579084, matching_buf[2]);
+        define_test_reading_not_matching_sizes_fn!(unmatching_read_sizes, i32, WaveReader::read_samples_as_i32);
+        define_test_reading_matching_size_fn!(matching_read_sizes, i32, 4, WaveReader::read_samples_as_i32);
+        unmatching_read_sizes(raw_data, &expected_results, 4);
+        matching_read_sizes(raw_data, &expected_results, 4);
     }
 
     trait VecExt {
