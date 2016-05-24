@@ -414,18 +414,7 @@ pub struct WaveReader<T>
     where T: Read + Seek
 {
     ///  Represents the PCM format for this wave file.
-    pub pcm_format: PcmFormat,
-
-    // The byte offset in the file where the actual wave data begins (should be
-    // 8 bytes after the beginning of the data subchunk).
-    data_begin: u64,
-
-    // The byte offset in the file where the wave data ends. If the subchunk size
-    // is invalid, then the reader may run into I/O errors before reaching data_end.
-    data_end: u64,
-
-    // The current data position, in bytes.
-    current_data_offset: u64,
+    pub pcm_format: PcmFormat,    
 
     // The underlying reader that we'll use to read data.
     reader: T,
@@ -437,62 +426,41 @@ impl<T> WaveReader<T>
     /// Returns a new wave reader for the given reader.
     pub fn new(mut reader: T) -> ReadResult<WaveReader<T>> {
         let pcm_format = try!(reader.read_wave_header());
-        let data_subchunk_size = try!(reader.skip_until_subchunk(b"data"));
-
-        let data_begin = try!(reader.seek(SeekFrom::Current(0)));
-        let data_end = data_begin + data_subchunk_size as u64;
+        let _ = try!(reader.skip_until_subchunk(b"data"));        
 
         Ok(WaveReader {
-            pcm_format: pcm_format,
-            data_begin: data_begin,
-            data_end: data_end,
-            current_data_offset: data_begin,
+            pcm_format: pcm_format,            
             reader: reader,
         })
     }
 
-    /// Reads a single sample as an unsigned 8-bit value. If we've reached the
-    /// end of the data chunk, then this will return Ok(None).
-    pub fn read_sample_u8(&mut self) -> io::Result<Option<u8>> {
-        self.read_sample(1, |reader| reader.read_u8())
+    /// Reads a single sample as an unsigned 8-bit value.
+    pub fn read_sample_u8(&mut self) -> io::Result<u8> {
+        self.read_sample(|reader| reader.read_u8())
     }
 
-    /// Reads a single sample as a signed 16-bit value. If we've reached the
-    /// end of the data chunk, then this will return Ok(None).
-    pub fn read_sample_i16(&mut self) -> io::Result<Option<i16>> {
-        self.read_sample(2, |reader| reader.read_i16::<LittleEndian>())
+    /// Reads a single sample as a signed 16-bit value.
+    pub fn read_sample_i16(&mut self) -> io::Result<i16> {
+        self.read_sample(|reader| reader.read_i16::<LittleEndian>())
     }
 
     /// Reads a single sample as a signed 24-bit value. The value will be padded
-    /// to fit in a 32-bit buffer. If we've reached the end of the data chunk,
-    /// then this will return Ok(None).
-    pub fn read_sample_i24(&mut self) -> io::Result<Option<i32>> {
-        self.read_sample(3, |reader| reader.read_int::<LittleEndian>(3))
-            .map(|opt_val| opt_val.map(|x| x as i32))
+    /// to fit in a 32-bit buffer.
+    pub fn read_sample_i24(&mut self) -> io::Result<i32> {
+        self.read_sample(|reader| reader.read_int::<LittleEndian>(3)).map(|x| x as i32)
     }
 
-    /// Reads a single sample as a signed 32-bit value. If we've reached the
-    /// end of the data chunk, then this will return Ok(None).
-    pub fn read_sample_i32(&mut self) -> io::Result<Option<i32>> {
-        self.read_sample(4, |reader| reader.read_i32::<LittleEndian>())
+    /// Reads a single sample as a signed 32-bit value.
+    pub fn read_sample_i32(&mut self) -> io::Result<i32> {
+        self.read_sample(|reader| reader.read_i32::<LittleEndian>())
     }
 
-    fn read_sample<F, S>(&mut self, sample_size: u64, read_data: F) -> io::Result<Option<S>>
+    fn read_sample<F, S>(&mut self, read_data: F) -> io::Result<S>
         where F: Fn(&mut T) -> io::Result<S>
-    {
-        let remaining = self.remaining();
-        if remaining == 0 {
-            Ok(None)
-        } else {
-            let val = try!(read_data(&mut self.reader));
-            self.current_data_offset += sample_size;
-            Ok(Some(val))
-        }
-    }
-
-    fn remaining(&self) -> u64 {
-        self.data_end - self.current_data_offset
-    }
+    {        
+        let val = try!(read_data(&mut self.reader));        
+        Ok(val)     
+    }    
 
     /// Reads several samples as unsigned 8-bit values. Returns the number of
     /// samples read, or an io error if one occurred before data was read.
@@ -520,26 +488,23 @@ impl<T> WaveReader<T>
     }
 
     fn read_samples<F, S>(&mut self, buf: &mut [S], read_sample_impl: F) -> io::Result<usize>
-        where F: Fn(&mut Self) -> io::Result<Option<S>>
+        where F: Fn(&mut Self) -> io::Result<S>
     {
         let mut successfully_read = 0;
 
         for out in &mut buf[..] {
             match read_sample_impl(self) {
-                Ok(Some(sample)) => {
+                Ok(sample) => {
                     *out = sample;
                     successfully_read = successfully_read + 1;
-                }
-                Ok(None) => {
-                    break;
-                }
+                },                
                 Err(err) => {
                     if successfully_read == 0 {
                         return Err(err);
                     } else {
                         break;
                     }
-                }                                    
+                },                                   
             }
         }
 
@@ -1028,51 +993,7 @@ mod tests {
         assert_eq!(b"UVWX", &buf);
     }
 
-    // Wave reader tests
-
-    #[test]
-    fn test_data_begin_and_data_end_with_empty_data_chunk() {
-        let mut vec = Vec::new();
-        vec.extend_from_slice(b"RIFF    WAVE\
-	                            fmt \x10\x00\x00\x00\
-	                            \x01\x00\
-	                            \x01\x00\
-	                            \x44\xAC\x00\x00\
-	                            \x00\x00\x00\x00\
-	                            \x00\x00\
-	                            \x08\x00\
-	                            data\x00\x00\x00\x00");
-        let cursor = Cursor::new(vec.clone());
-        let wave_reader = WaveReader::new(cursor).unwrap();
-
-        // No data
-        assert_eq!(44, wave_reader.data_begin);
-        assert_eq!(44, wave_reader.data_end);
-    }
-
-    #[test]
-    fn test_data_begin_and_data_end_with_some_data_chunk() {
-        let mut vec = Vec::new();
-        vec.extend_from_slice(b"RIFF    WAVE\
-	                            fmt \x10\x00\x00\x00\
-	                            \x01\x00\
-	                            \x01\x00\
-	                            \x44\xAC\x00\x00\
-	                            \x00\x00\x00\x00\
-	                            \x00\x00\
-	                            \x08\x00\
-	                            data\x10\x00\x00\x00\
-	                            \x00\x00\x00\x00\
-	                            \x00\x00\x00\x00\
-	                            \x00\x00\x00\x00\
-	                            \x00\x00\x00\x00");
-        let cursor = Cursor::new(vec.clone());
-        let wave_reader = WaveReader::new(cursor).unwrap();
-
-        // 16 bytes of data
-        assert_eq!(44, wave_reader.data_begin);
-        assert_eq!(60, wave_reader.data_end);
-    }
+    // Wave reader tests    
 
     #[test]
     fn test_reading_data_from_data_chunk_u8() {
