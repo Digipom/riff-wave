@@ -414,7 +414,7 @@ pub struct WaveReader<T>
     where T: Read + Seek
 {
     ///  Represents the PCM format for this wave file.
-    pub pcm_format: PcmFormat,    
+    pub pcm_format: PcmFormat,
 
     // The underlying reader that we'll use to read data.
     reader: T,
@@ -426,10 +426,10 @@ impl<T> WaveReader<T>
     /// Returns a new wave reader for the given reader.
     pub fn new(mut reader: T) -> ReadResult<WaveReader<T>> {
         let pcm_format = try!(reader.read_wave_header());
-        let _ = try!(reader.skip_until_subchunk(b"data"));        
+        let _ = try!(reader.skip_until_subchunk(b"data"));
 
         Ok(WaveReader {
-            pcm_format: pcm_format,            
+            pcm_format: pcm_format,
             reader: reader,
         })
     }
@@ -457,10 +457,10 @@ impl<T> WaveReader<T>
 
     fn read_sample<F, S>(&mut self, read_data: F) -> io::Result<S>
         where F: Fn(&mut T) -> io::Result<S>
-    {        
-        let val = try!(read_data(&mut self.reader));        
-        Ok(val)     
-    }    
+    {
+        let val = try!(read_data(&mut self.reader));
+        Ok(val)
+    }
 
     /// Reads several samples as unsigned 8-bit values. Returns the number of
     /// samples read, or an io error if one occurred before data was read.
@@ -497,14 +497,14 @@ impl<T> WaveReader<T>
                 Ok(sample) => {
                     *out = sample;
                     successfully_read = successfully_read + 1;
-                },                
+                }                
                 Err(err) => {
                     if successfully_read == 0 {
                         return Err(err);
                     } else {
                         break;
                     }
-                },                                   
+                }                                   
             }
         }
 
@@ -518,6 +518,8 @@ impl<T> WaveReader<T>
 mod tests {
     use std::io;
     use std::io::{Cursor, Read};
+
+    use byteorder::{ByteOrder, LittleEndian};
 
     use {FORMAT_UNCOMPRESSED_PCM, FORMAT_EXTENDED};
     use {Format, FormatErrorKind, PcmFormat, ReadError, ReadWaveExt, WaveReader};
@@ -993,25 +995,16 @@ mod tests {
         assert_eq!(b"UVWX", &buf);
     }
 
-    // Wave reader tests    
+    // Wave reader tests
 
     #[test]
     fn test_reading_data_from_data_chunk_u8() {
-        let mut vec = Vec::new();
-        vec.extend_from_slice(b"RIFF    WAVE\
-	                            fmt \x10\x00\x00\x00\
-	                            \x01\x00\
-	                            \x01\x00\
-	                            \x44\xAC\x00\x00\
-	                            \x00\x00\x00\x00\
-	                            \x00\x00\
-	                            \x08\x00\
-	                            data\x10\x00\x00\x00\
-	                            \x00\x01\x02\x03\
-	                            \x04\x05\x06\x07\
-	                            \x08\x09\x0A\x0B\
-	                            \x0C\x0D\x0E\x0F");
+        let raw_data = b"\x00\x01\x02\x03\
+                         \x04\x05\x06\x07\
+                         \x08\x09\x0A\x0B\
+                         \x0C\x0D\x0E\x0F";
 
+        let vec = create_standard_in_memory_riff_wave(1, 44100, 8, raw_data);
         let cursor = Cursor::new(vec.clone());
         let mut wave_reader = WaveReader::new(cursor).unwrap();
 
@@ -1059,21 +1052,12 @@ mod tests {
 
     #[test]
     fn test_reading_data_from_data_chunk_i16() {
-        let mut vec = Vec::new();
-        vec.extend_from_slice(b"RIFF    WAVE\
-                                fmt \x10\x00\x00\x00\
-                                \x01\x00\
-                                \x01\x00\
-                                \x88\x58\x01\x00\
-                                \x00\x00\x00\x00\
-                                \x00\x00\
-                                \x10\x00\
-                                data\x10\x00\x00\x00\
-                                \x00\x01\x01\x01\
-                                \x02\x01\x03\x01\
-                                \x04\x01\x05\x01\
-                                \x06\x01\x07\x01");
+        let raw_data = b"\x00\x01\x01\x01\
+                         \x02\x01\x03\x01\
+                         \x04\x01\x05\x01\
+                         \x06\x01\x07\x01";
 
+        let vec = create_standard_in_memory_riff_wave(1, 44100, 16, raw_data);
         let cursor = Cursor::new(vec.clone());
         let mut wave_reader = WaveReader::new(cursor).unwrap();
 
@@ -1120,22 +1104,13 @@ mod tests {
 
     #[test]
     fn test_reading_data_from_data_chunk_i24() {
-        let mut vec = Vec::new();
-        vec.extend_from_slice(b"RIFF    WAVE\
-                                fmt \x10\x00\x00\x00\
-                                \x01\x00\
-                                \x01\x00\
-                                \xCC\x04\x02\x00\
-                                \x00\x00\x00\x00\
-                                \x00\x00\
-                                \x18\x00\
-                                data\x0F\x00\x00\x00\
-                                \x01\x01\x02\
-                                \x02\x01\x02\
-                                \x03\x01\x02\
-                                \x04\x01\x02\
-                                \x05\x01\x02");
+        let raw_data = b"\x01\x01\x02\
+                         \x02\x01\x02\
+                         \x03\x01\x02\
+                         \x04\x01\x02\
+                         \x05\x01\x02";
 
+        let vec = create_standard_in_memory_riff_wave(1, 44100, 24, raw_data);
         let cursor = Cursor::new(vec.clone());
         let mut wave_reader = WaveReader::new(cursor).unwrap();
 
@@ -1182,21 +1157,12 @@ mod tests {
 
     #[test]
     fn test_reading_data_from_data_chunk_i32() {
-        let mut vec = Vec::new();
-        vec.extend_from_slice(b"RIFF    WAVE\
-                                fmt \x10\x00\x00\x00\
-                                \x01\x00\
-                                \x01\x00\
-                                \x10\xB1\x02\x00\
-                                \x00\x00\x00\x00\
-                                \x00\x00\
-                                \x20\x00\
-                                data\x10\x00\x00\x00\
-                                \x00\x01\x02\x03\
-                                \x04\x05\x06\x07\
-                                \x08\x09\x0A\x0B\
-                                \x0C\x0D\x0E\x0F");
+        let raw_data = b"\x00\x01\x02\x03\
+                         \x04\x05\x06\x07\
+                         \x08\x09\x0A\x0B\
+                         \x0C\x0D\x0E\x0F";
 
+        let vec = create_standard_in_memory_riff_wave(1, 44100, 32, raw_data);
         let cursor = Cursor::new(vec.clone());
         let mut wave_reader = WaveReader::new(cursor).unwrap();
 
@@ -1236,5 +1202,78 @@ mod tests {
         assert_eq!(117835012, matching_buf[0]);
         assert_eq!(185207048, matching_buf[1]);
         assert_eq!(252579084, matching_buf[2]);
+    }
+
+    trait VecExt {
+        fn extend_with_header_for_standard_wave(&mut self, data_size: usize);
+
+        fn extend_with_standard_fmt_subchunk(&mut self,
+                                             num_channels: u16,
+                                             sample_rate: u32,
+                                             bits_per_sample: u16);
+
+        fn extend_with_data_subchunk(&mut self, raw_data: &[u8]);
+
+        fn extend_with_u16(&mut self, val: u16);
+
+        fn extend_with_u32(&mut self, val: u32);
+    }
+
+    impl VecExt for Vec<u8> {
+        fn extend_with_header_for_standard_wave(&mut self, data_size: usize) {
+            self.extend_from_slice(b"RIFF");                    // Identifier
+            self.extend_with_u32(36 + data_size as u32);        // File size minus eight bytes
+            self.extend_from_slice(b"WAVE");                    // Identifier
+        }
+
+        fn extend_with_standard_fmt_subchunk(&mut self,
+                                             num_channels: u16,
+                                             sample_rate: u32,
+                                             bits_per_sample: u16) {
+            self.extend_from_slice(b"fmt \x10\x00\x00\x00");    // "fmt " chunk and size
+            self.extend_from_slice(b"\x01\x00");                // PCM Format
+            self.extend_with_u16(num_channels);                 // Number of channels
+            self.extend_with_u32(sample_rate);                  // Sample rate
+
+            let bytes_per_sample = bits_per_sample / 8;
+            let block_align = num_channels * bytes_per_sample;
+            let byte_rate = block_align as u32 * sample_rate;
+
+            self.extend_with_u32(byte_rate);                    // Byte rate
+            self.extend_with_u16(block_align);                  // Block align
+            self.extend_with_u16(bits_per_sample);              // Bits per sample
+        }
+
+        fn extend_with_data_subchunk(&mut self, raw_data: &[u8]) {
+            self.extend_from_slice(b"data");                    // Start of "data" subchunk.
+            self.extend_with_u32(raw_data.len() as u32);        // Size of data subchunk.
+            self.extend_from_slice(raw_data);                   // The actual data, as bytes.
+        }
+
+        fn extend_with_u16(&mut self, val: u16) {
+            let mut buf_16: [u8; 2] = [0; 2];
+            LittleEndian::write_u16(&mut buf_16, val);
+            self.extend_from_slice(&buf_16);
+        }
+
+        fn extend_with_u32(&mut self, val: u32) {
+            let mut buf_32: [u8; 4] = [0; 4];
+            LittleEndian::write_u32(&mut buf_32, val);
+            self.extend_from_slice(&buf_32);
+        }
+    }
+
+    fn create_standard_in_memory_riff_wave(num_channels: u16,
+                                           sample_rate: u32,
+                                           bits_per_sample: u16,
+                                           data: &[u8])
+                                           -> Vec<u8> {
+        let mut vec = Vec::new();
+
+        vec.extend_with_header_for_standard_wave(data.len());
+        vec.extend_with_standard_fmt_subchunk(num_channels, sample_rate, bits_per_sample);
+        vec.extend_with_data_subchunk(data);
+
+        vec
     }
 }
