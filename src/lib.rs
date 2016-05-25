@@ -396,9 +396,7 @@ impl<T> ReadWaveExt for T where T: Read + Seek {}
 
 /// Helper struct that takes ownership of a reader and can be used to read data
 /// from a PCM wave file.
-pub struct WaveReader<T>
-    where T: Read + Seek
-{
+pub struct WaveReader<T> where T: Read + Seek {
     ///  Represents the PCM format for this wave file.
     pub pcm_format: PcmFormat,
 
@@ -406,9 +404,7 @@ pub struct WaveReader<T>
     reader: T,
 }
 
-impl<T> WaveReader<T>
-    where T: Read + Seek
-{
+impl<T> WaveReader<T> where T: Read + Seek {
     /// Returns a new wave reader for the given reader.
     pub fn new(mut reader: T) -> ReadResult<WaveReader<T>> {
         let pcm_format = try!(reader.read_wave_header());
@@ -443,58 +439,8 @@ impl<T> WaveReader<T>
 
     fn read_sample<F, S>(&mut self, read_data: F) -> io::Result<S>
         where F: Fn(&mut T) -> io::Result<S>
-    {
-        let val = try!(read_data(&mut self.reader));
-        Ok(val)
-    }
-
-    /// Reads several samples as unsigned 8-bit values. Returns the number of
-    /// samples read, or an io error if one occurred before data was read.
-    pub fn read_samples_as_u8(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.read_samples(buf, |wave_reader| WaveReader::read_sample_u8(wave_reader))
-    }
-
-    /// Reads several samples as signed 16-bit values. Returns the number of
-    /// samples read, or an io error if one occurred before data was read.
-    pub fn read_samples_as_i16(&mut self, buf: &mut [i16]) -> io::Result<usize> {
-        self.read_samples(buf, |wave_reader| WaveReader::read_sample_i16(wave_reader))
-    }
-
-    /// Reads several samples as signed 24-bit values. The values will be padded
-    /// to fit in a 32-bit buffer. Returns the number of samples read, or an io
-    /// error if one occurred before data was read.
-    pub fn read_samples_as_i24(&mut self, buf: &mut [i32]) -> io::Result<usize> {
-        self.read_samples(buf, |wave_reader| WaveReader::read_sample_i24(wave_reader))
-    }
-
-    /// Reads several samples as signed 32-bit values. Returns the number of
-    /// samples read, or an io error if one occurred before data was read.
-    pub fn read_samples_as_i32(&mut self, buf: &mut [i32]) -> io::Result<usize> {
-        self.read_samples(buf, |wave_reader| WaveReader::read_sample_i32(wave_reader))
-    }
-
-    fn read_samples<F, S>(&mut self, buf: &mut [S], read_sample_impl: F) -> io::Result<usize>
-        where F: Fn(&mut Self) -> io::Result<S>
-    {
-        let mut successfully_read = 0;
-
-        for out in &mut buf[..] {
-            match read_sample_impl(self) {
-                Ok(sample) => {
-                    *out = sample;
-                    successfully_read = successfully_read + 1;
-                }                
-                Err(err) => {
-                    if successfully_read == 0 {
-                        return Err(err);
-                    } else {
-                        break;
-                    }
-                }                                   
-            }
-        }
-
-        Ok(successfully_read)
+    {        
+        Ok(try!(read_data(&mut self.reader)))
     }
 }
 
@@ -983,56 +929,17 @@ mod tests {
 
     // Wave reader tests
 
-    macro_rules! define_test_reading_not_matching_sizes_fn {
-        ($name: ident, $num_type: ty, $read_samples: path) => {
+    macro_rules! define_test_reading_fn {
+        ($name: ident, $num_type: ty, $read_sample: path) => {
             fn $name(raw_data: &[u8], expected_results: &[$num_type], bytes_per_num: u16) {
                 let vec = create_standard_in_memory_riff_wave(1, 44100, bytes_per_num * 8, raw_data);
                 let cursor = Cursor::new(vec.clone());
                 let mut wave_reader = WaveReader::new(cursor).unwrap();
 
-                // Buf size 0
-                let mut buf: [$num_type; 0] = [0; 0];
-                let read_count = $read_samples(&mut wave_reader, &mut buf).unwrap();
-                assert_eq!(0, read_count);
-
-                // Buf size less than remaining:
-                let mut buf: [$num_type; 2] = [0; 2];
-                let read_count = $read_samples(&mut wave_reader, &mut buf).unwrap();
-                assert_eq!(buf.len(), read_count);
-
-                for i in 0..buf.len() {
-                    assert_eq!(expected_results[i], buf[i]);
-                }
-
-                // Buf size greater than remaining
-                let already_read_count = buf.len();
-                let mut buf: [$num_type; 64] = [0; 64];
-                let read_count = $read_samples(&mut wave_reader, &mut buf).unwrap();
-                let expected_remaining_count = expected_results.len() - already_read_count;
-                assert_eq!(expected_remaining_count, read_count);
-
-                for i in 0..expected_remaining_count {
-                    assert_eq!(expected_results[i + already_read_count], buf[i]);
-                }
-            }
-        }
-    }
-
-    macro_rules! define_test_reading_matching_size_fn {
-           ($name: ident, $num_type: ty, $array_size: expr, $read_samples: path) => {
-            fn $name(raw_data: &[u8], expected_results: &[$num_type], bytes_per_num: u16) {
-                let vec = create_standard_in_memory_riff_wave(1, 44100, bytes_per_num * 8, raw_data);
-                let cursor = Cursor::new(vec.clone());
-                let mut wave_reader = WaveReader::new(cursor).unwrap();
-
-                // Buf size equal to remaining
-                let mut buf: [$num_type; $array_size] = [0; $array_size];
-                let read_count = $read_samples(&mut wave_reader, &mut buf).unwrap();
-                assert_eq!(expected_results.len(), read_count);
-
-                for i in 0..$array_size {
-                    assert_eq!(expected_results[i], buf[i]);
-                }
+                for expected in expected_results {
+                    let next_sample = $read_sample(&mut wave_reader).unwrap(); 
+                    assert_eq!(*expected, next_sample);
+                }                
             }
         }
     }
@@ -1049,10 +956,8 @@ mod tests {
                                  8,  9, 10, 11, 
                                 12, 13, 14, 15];
 
-        define_test_reading_not_matching_sizes_fn!(unmatching_read_sizes, u8, WaveReader::read_samples_as_u8);
-        define_test_reading_matching_size_fn!(matching_read_sizes, u8, 16, WaveReader::read_samples_as_u8);
-        unmatching_read_sizes(raw_data, &expected_results, 1);
-        matching_read_sizes(raw_data, &expected_results, 1);
+        define_test_reading_fn!(test_reads, u8, WaveReader::read_sample_u8);        
+        test_reads(raw_data, &expected_results, 1);        
     }
 
     #[test]
@@ -1066,10 +971,8 @@ mod tests {
                                 260, 261, 
                                 262, 263];
 
-        define_test_reading_not_matching_sizes_fn!(unmatching_read_sizes, i16, WaveReader::read_samples_as_i16);
-        define_test_reading_matching_size_fn!(matching_read_sizes, i16, 8, WaveReader::read_samples_as_i16);
-        unmatching_read_sizes(raw_data, &expected_results, 2);
-        matching_read_sizes(raw_data, &expected_results, 2);
+        define_test_reading_fn!(test_reads, i16, WaveReader::read_sample_i16);        
+        test_reads(raw_data, &expected_results, 1);
     }
 
     #[test]
@@ -1085,10 +988,8 @@ mod tests {
                                 65536 * 2 + 256 + 1 + 3,
                                 65536 * 2 + 256 + 1 + 4];
 
-        define_test_reading_not_matching_sizes_fn!(unmatching_read_sizes, i32, WaveReader::read_samples_as_i24);
-        define_test_reading_matching_size_fn!(matching_read_sizes, i32, 5, WaveReader::read_samples_as_i24);
-        unmatching_read_sizes(raw_data, &expected_results, 3);
-        matching_read_sizes(raw_data, &expected_results, 3);
+        define_test_reading_fn!(test_reads, i32, WaveReader::read_sample_i24);        
+        test_reads(raw_data, &expected_results, 1);
     }
 
     #[test]
@@ -1102,10 +1003,8 @@ mod tests {
                                 185207048, 
                                 252579084];
 
-        define_test_reading_not_matching_sizes_fn!(unmatching_read_sizes, i32, WaveReader::read_samples_as_i32);
-        define_test_reading_matching_size_fn!(matching_read_sizes, i32, 4, WaveReader::read_samples_as_i32);
-        unmatching_read_sizes(raw_data, &expected_results, 4);
-        matching_read_sizes(raw_data, &expected_results, 4);
+        define_test_reading_fn!(test_reads, i32, WaveReader::read_sample_i32);        
+        test_reads(raw_data, &expected_results, 1);
     }
 
     trait VecExt {

@@ -75,9 +75,8 @@ fn test_header_for_standard_file_8bit_mono_16000_with_data() {
 	assert_eq!(16000, wave_reader.pcm_format.sample_rate);
 	assert_eq!(8, wave_reader.pcm_format.bits_per_sample);
 
-	let mut buffer = [0; 16];
-	wave_reader.read_samples_as_u8(&mut buffer).unwrap();
-	for (i, &val) in buffer.iter().enumerate() {
-        assert_eq!(i as u8, val);
-    }
+	for i in 0..16 {
+		let next_sample = wave_reader.read_sample_u8().unwrap();
+		assert_eq!(i as u8, next_sample);
+	}
 }
