@@ -396,7 +396,9 @@ impl<T> ReadWaveExt for T where T: Read + Seek {}
 
 /// Helper struct that takes ownership of a reader and can be used to read data
 /// from a PCM wave file.
-pub struct WaveReader<T> where T: Read + Seek {
+pub struct WaveReader<T>
+    where T: Read + Seek
+{
     ///  Represents the PCM format for this wave file.
     pub pcm_format: PcmFormat,
 
@@ -404,7 +406,9 @@ pub struct WaveReader<T> where T: Read + Seek {
     reader: T,
 }
 
-impl<T> WaveReader<T> where T: Read + Seek {
+impl<T> WaveReader<T>
+    where T: Read + Seek
+{
     /// Returns a new wave reader for the given reader.
     pub fn new(mut reader: T) -> ReadResult<WaveReader<T>> {
         let pcm_format = try!(reader.read_wave_header());
@@ -439,7 +443,7 @@ impl<T> WaveReader<T> where T: Read + Seek {
 
     fn read_sample<F, S>(&mut self, read_data: F) -> io::Result<S>
         where F: Fn(&mut T) -> io::Result<S>
-    {        
+    {
         Ok(try!(read_data(&mut self.reader)))
     }
 }
@@ -448,6 +452,7 @@ impl<T> WaveReader<T> where T: Read + Seek {
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Debug;
     use std::io;
     use std::io::{Cursor, Read};
 
@@ -929,21 +934,6 @@ mod tests {
 
     // Wave reader tests
 
-    macro_rules! define_test_reading_fn {
-        ($name: ident, $num_type: ty, $read_sample: path) => {
-            fn $name(raw_data: &[u8], expected_results: &[$num_type], bytes_per_num: u16) {
-                let vec = create_standard_in_memory_riff_wave(1, 44100, bytes_per_num * 8, raw_data);
-                let cursor = Cursor::new(vec.clone());
-                let mut wave_reader = WaveReader::new(cursor).unwrap();
-
-                for expected in expected_results {
-                    let next_sample = $read_sample(&mut wave_reader).unwrap(); 
-                    assert_eq!(*expected, next_sample);
-                }                
-            }
-        }
-    }
-
     #[test]
     fn test_reading_data_from_data_chunk_u8() {
         let raw_data = b"\x00\x01\x02\x03\
@@ -956,8 +946,10 @@ mod tests {
                                  8,  9, 10, 11, 
                                 12, 13, 14, 15];
 
-        define_test_reading_fn!(test_reads, u8, WaveReader::read_sample_u8);        
-        test_reads(raw_data, &expected_results, 1);        
+        test_reading_data_from_data_chunk(raw_data,
+                                          &expected_results,
+                                          1,
+                                          WaveReader::read_sample_u8);
     }
 
     #[test]
@@ -971,8 +963,10 @@ mod tests {
                                 260, 261, 
                                 262, 263];
 
-        define_test_reading_fn!(test_reads, i16, WaveReader::read_sample_i16);        
-        test_reads(raw_data, &expected_results, 1);
+        test_reading_data_from_data_chunk(raw_data,
+                                          &expected_results,
+                                          2,
+                                          WaveReader::read_sample_i16);
     }
 
     #[test]
@@ -988,8 +982,10 @@ mod tests {
                                 65536 * 2 + 256 + 1 + 3,
                                 65536 * 2 + 256 + 1 + 4];
 
-        define_test_reading_fn!(test_reads, i32, WaveReader::read_sample_i24);        
-        test_reads(raw_data, &expected_results, 1);
+        test_reading_data_from_data_chunk(raw_data,
+                                          &expected_results,
+                                          3,
+                                          WaveReader::read_sample_i24);
     }
 
     #[test]
@@ -1003,8 +999,27 @@ mod tests {
                                 185207048, 
                                 252579084];
 
-        define_test_reading_fn!(test_reads, i32, WaveReader::read_sample_i32);        
-        test_reads(raw_data, &expected_results, 1);
+        test_reading_data_from_data_chunk(raw_data,
+                                          &expected_results,
+                                          4,
+                                          WaveReader::read_sample_i32);
+    }
+
+    fn test_reading_data_from_data_chunk<S, F>(raw_data: &[u8],
+                                               expected_results: &[S],
+                                               bytes_per_num: u16,
+                                               read_sample: F)
+        where S: PartialEq + Debug,
+              F: Fn(&mut WaveReader<Cursor<Vec<u8>>>) -> io::Result<S>
+    {
+        let vec = create_standard_in_memory_riff_wave(1, 44100, bytes_per_num * 8, raw_data);
+        let cursor = Cursor::new(vec.clone());
+        let mut wave_reader = WaveReader::new(cursor).unwrap();
+
+        for expected in expected_results {
+            let next_sample = read_sample(&mut wave_reader).unwrap();
+            assert_eq!(*expected, next_sample);
+        }
     }
 
     trait VecExt {
