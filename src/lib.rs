@@ -136,11 +136,11 @@
 
 extern crate byteorder;
 
-// This is a helper macro that helps us validate results in our tests. It has 
+// This is a helper macro that helps us validate results in our tests. It has
 // to be defined before the mod definitions below so that it's visible in those
-// mods. 
+// mods.
 // Thank you bluss and durka42!
-#[cfg(test)]           
+#[cfg(test)]
 macro_rules! assert_matches {
     ($expected:pat $(if $guard:expr)*, $value:expr) => {
         match $value {

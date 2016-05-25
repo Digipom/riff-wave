@@ -16,7 +16,10 @@ use std::io;
 use std::io::{Seek, Write};
 use std::result;
 
-use super::{PcmFormat};
+use byteorder::{LittleEndian, WriteBytesExt};
+
+use super::PcmFormat;
+use super::FORMAT_UNCOMPRESSED_PCM;
 
 // MARK: Error types
 
@@ -42,13 +45,13 @@ impl fmt::Display for WriteError {
 
 /// Represents a file format error, when incorrect parameters have been specified.
 #[derive(Debug)]
-pub enum WriteErrorKind {    
+pub enum WriteErrorKind {
     /// The number of channels is zero, which is invalid.
     NumChannelsIsZero,
     /// The sample rate is zero, which is invalid.
     SampleRateIsZero,
     /// Only 8-bit, 16-bit, 24-bit and 32-bit PCM files are supported.
-    UnsupportedBitsPerSample(u16),    
+    UnsupportedBitsPerSample(u16),
 }
 
 impl WriteErrorKind {
@@ -91,6 +94,72 @@ impl From<io::Error> for WriteError {
 
 // MARK: Writing functions
 
+trait WriteWaveExt: Write + Seek {
+    fn write_standard_wave_header(&mut self, pcm_format: &PcmFormat) -> WriteResult<()> {
+        try!(self.write_riff_wave_chunk_header());
+        try!(self.write_standard_fmt_subchunk(pcm_format.num_channels, pcm_format.sample_rate, pcm_format.bits_per_sample));
+        try!(self.write_data_subchunk_header());
+
+        Ok(())
+    }
+
+    fn write_riff_wave_chunk_header(&mut self) -> WriteResult<()> {
+        try!(self.write_all(b"RIFF"));                      // Identifier
+        try!(self.write_u32_l(36));                         // File size (header) minus eight bytes
+        try!(self.write_all(b"WAVE"));                      // Identifier
+
+        Ok(())
+    }
+
+    fn write_standard_fmt_subchunk(&mut self,
+                                   num_channels: u16,
+                                   sample_rate: u32,
+                                   bits_per_sample: u16)
+                                   -> WriteResult<()> {
+        if num_channels == 0 {
+            return Err(WriteError::Format(WriteErrorKind::NumChannelsIsZero));
+        } else if sample_rate == 0 {
+            return Err(WriteError::Format(WriteErrorKind::SampleRateIsZero));
+        } else if bits_per_sample != 8 && bits_per_sample != 16 && bits_per_sample != 24 &&
+           bits_per_sample != 32 {
+            return Err(WriteError::Format(WriteErrorKind::UnsupportedBitsPerSample(bits_per_sample)));
+        }
+
+        try!(self.write_all(b"fmt "));                      // "fmt " chunk and size
+        try!(self.write_u32_l(16));                         // Subchunk size
+        try!(self.write_u16_l(FORMAT_UNCOMPRESSED_PCM));    // PCM Format
+        try!(self.write_u16_l(num_channels));               // Number of channels
+        try!(self.write_u32_l(sample_rate));                // Sample rate
+
+        let bytes_per_sample = bits_per_sample / 8;
+        let block_align = num_channels * bytes_per_sample;
+        let byte_rate = block_align as u32 * sample_rate;
+
+        try!(self.write_u32_l(byte_rate));                  // Byte rate
+        try!(self.write_u16_l(block_align));                // Block align
+        try!(self.write_u16_l(bits_per_sample));            // Bits per sample
+
+        Ok(())
+    }
+
+    fn write_data_subchunk_header(&mut self) -> WriteResult<()> {
+        try!(self.write_all(b"data"));                      // Start of "data" subchunk
+        try!(self.write_u32_l(0));                          // Size of data subchunk.
+
+        Ok(())
+    }
+
+    fn write_u16_l(&mut self, n: u16) -> io::Result<()> {
+        self.write_u16::<LittleEndian>(n)
+    }
+
+    fn write_u32_l(&mut self, n: u32) -> io::Result<()> {
+        self.write_u32::<LittleEndian>(n)
+    }
+}
+
+impl<T> WriteWaveExt for T where T: Seek + Write {}
+
 /// Helper struct that takes ownership of a writer and can be used to write data
 /// to a PCM wave file.
 #[derive(Debug)]
@@ -109,25 +178,31 @@ impl<T> WaveWriter<T>
     where T: Seek + Write
 {
     /// Returns a new wave writer for the given writer.
-    pub fn new(num_channels: u16, sample_rate: u32, bits_per_sample: u16, mut writer: T) -> WriteResult<WaveWriter<T>> {
-    	if num_channels == 0 {
-    		return Err(WriteError::Format(WriteErrorKind::NumChannelsIsZero));
-    	} else if sample_rate == 0 {
-    		return Err(WriteError::Format(WriteErrorKind::SampleRateIsZero));
-    	} else if bits_per_sample != 8 && bits_per_sample != 16 
-        	   && bits_per_sample != 24 && bits_per_sample != 32 {
-    	   	return Err(WriteError::Format(WriteErrorKind::UnsupportedBitsPerSample(bits_per_sample)));
-	   	}
+    pub fn new(num_channels: u16,
+               sample_rate: u32,
+               bits_per_sample: u16,
+               mut writer: T)
+               -> WriteResult<WaveWriter<T>> {
+        let pcm_format = PcmFormat {
+            num_channels: num_channels,
+            sample_rate: sample_rate,
+            bits_per_sample: bits_per_sample,
+        };
 
-        let pcm_format = PcmFormat { num_channels: num_channels, sample_rate: sample_rate, bits_per_sample: bits_per_sample};
-        
+        try!(writer.write_standard_wave_header(&pcm_format));
+
         Ok(WaveWriter {
             pcm_format: pcm_format,
             writer: writer,
         })
     }
 
-/*
+    /// Consumes this writer, returning the underlying value.
+    pub fn into_inner(self) -> T {
+        self.writer
+    }
+
+    /*
     /// Reads a single sample as an unsigned 8-bit value.
     pub fn read_sample_u8(&mut self) -> io::Result<u8> {
         self.read_sample(|reader| reader.read_u8())
@@ -162,7 +237,9 @@ impl<T> WaveWriter<T>
 mod tests {        
     use std::io::Cursor;    
 
+    use super::super::WaveReader;
     use super::{WriteError, WriteErrorKind, WaveWriter};        
+
 
     // Validation tests
 
@@ -189,4 +266,24 @@ mod tests {
     	let wave_writer = WaveWriter::new(1, 44100, 16, Cursor::new(Vec::new()));        
         assert_matches!(Ok(_), wave_writer);
     }
+
+    // Header validation tests
+
+    #[test]
+    fn test_header_is_acceptable() {
+        let data = Vec::new();
+        let mut cursor = Cursor::new(data);
+        let wave_writer = WaveWriter::new(1, 44100, 16, cursor).unwrap();
+        let mut cursor = wave_writer.into_inner();
+
+        cursor.set_position(0);
+
+        let wave_reader = WaveReader::new(cursor).unwrap();
+
+        assert_eq!(1, wave_reader.pcm_format.num_channels);
+        assert_eq!(44100, wave_reader.pcm_format.sample_rate);
+        assert_eq!(16, wave_reader.pcm_format.bits_per_sample);
+    }
+
+    // TODO test header
 }

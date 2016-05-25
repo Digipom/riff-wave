@@ -19,7 +19,7 @@ use std::result;
 use byteorder::{LittleEndian, ReadBytesExt};
 
 use super::{Format, PcmFormat};
-use super::{FORMAT_UNCOMPRESSED_PCM, FORMAT_EXTENDED}; 
+use super::{FORMAT_UNCOMPRESSED_PCM, FORMAT_EXTENDED};
 
 // MARK: Error types
 
@@ -190,7 +190,7 @@ trait ReadWaveExt: Read + Seek {
             // We don't currently support wave files where the bits per sample
             // doesn't entirely fill the allocated bits per sample.
             return Err(ReadError::Format(ReadErrorKind::InvalidBitsPerSample(bits_per_sample,
-                                                                               sample_info)));
+                                                                             sample_info)));
         }
 
         Ok(())
@@ -218,10 +218,7 @@ trait ReadWaveExt: Read + Seek {
         Ok(())
     }
 
-    fn validate_tag(&mut self,
-                    expected_tag: &[u8; 4],
-                    err_kind: ReadErrorKind)
-                    -> ReadResult<()> {
+    fn validate_tag(&mut self, expected_tag: &[u8; 4], err_kind: ReadErrorKind) -> ReadResult<()> {
         let tag = try!(self.read_tag());
         if &tag != expected_tag {
             return Err(ReadError::Format(err_kind));
@@ -309,6 +306,11 @@ impl<T> WaveReader<T>
     {
         Ok(try!(read_data(&mut self.reader)))
     }
+
+    /// Consumes this reader, returning the underlying value.
+    pub fn into_inner(self) -> T {
+        self.reader
+    }
 }
 
 // MARK: Tests
@@ -321,9 +323,9 @@ mod tests {
 
     use byteorder::{ByteOrder, LittleEndian};
 
-    use super::super::{FORMAT_UNCOMPRESSED_PCM, FORMAT_EXTENDED};    
+    use super::super::{FORMAT_UNCOMPRESSED_PCM, FORMAT_EXTENDED};
     use super::super::{Format, PcmFormat};
-    use super::{ReadError, ReadErrorKind, ReadWaveExt, WaveReader};      
+    use super::{ReadError, ReadErrorKind, ReadWaveExt, WaveReader};
     use super::{validate_fmt_header_is_large_enough, validate_pcm_format, validate_pcm_subformat};
 
     // RIFF header tests
