@@ -162,21 +162,7 @@ impl<T> WaveWriter<T>
 mod tests {        
     use std::io::Cursor;    
 
-    use super::{WriteError, WriteErrorKind, WaveWriter};    
-
-    // This is a helper macro that helps us validate results in our tests.
-    // Thank you bluss and durka42!
-    macro_rules! assert_matches {
-        ($expected:pat $(if $guard:expr)*, $value:expr) => {
-            match $value {
-                $expected $(if $guard)* => {},
-                ref actual => {
-                    panic!("assertion failed: `(left matches right)` (left: `{}`, right: `{:?}`",
-                        stringify!($expected), actual);
-                },
-            }
-        };
-    }
+    use super::{WriteError, WriteErrorKind, WaveWriter};        
 
     // Validation tests
 

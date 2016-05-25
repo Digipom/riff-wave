@@ -326,20 +326,6 @@ mod tests {
     use super::{ReadError, ReadErrorKind, ReadWaveExt, WaveReader};      
     use super::{validate_fmt_header_is_large_enough, validate_pcm_format, validate_pcm_subformat};
 
-    // This is a helper macro that helps us validate results in our tests.
-    // Thank you bluss and durka42!
-    macro_rules! assert_matches {
-        ($expected:pat $(if $guard:expr)*, $value:expr) => {
-            match $value {
-                $expected $(if $guard)* => {},
-                ref actual => {
-                    panic!("assertion failed: `(left matches right)` (left: `{}`, right: `{:?}`",
-                        stringify!($expected), actual);
-                },
-            }
-        };
-    }
-
     // RIFF header tests
 
     #[test]
