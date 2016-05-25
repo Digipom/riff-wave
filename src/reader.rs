@@ -27,7 +27,7 @@ use super::{FORMAT_UNCOMPRESSED_PCM, FORMAT_EXTENDED};
 #[derive(Debug)]
 pub enum ReadError {
     /// The file format is incorrect or unsupported.
-    Format(FormatErrorKind),
+    Format(ReadErrorKind),
     /// An IO error occurred.
     Io(io::Error),
 }
@@ -46,7 +46,7 @@ impl fmt::Display for ReadError {
 
 /// Represents a file format error, when the wave file is incorrect or unsupported.
 #[derive(Debug)]
-pub enum FormatErrorKind {
+pub enum ReadErrorKind {
     /// The file does not start with a "RIFF" tag and chunk size.
     NotARiffFile,
     /// The file doesn't continue with "WAVE" after the RIFF chunk header.
@@ -66,24 +66,24 @@ pub enum FormatErrorKind {
     InvalidBitsPerSample(u16, u16),
 }
 
-impl FormatErrorKind {
+impl ReadErrorKind {
     fn to_string(&self) -> &str {
         match *self {
-            FormatErrorKind::NotARiffFile => "not a RIFF file",
-            FormatErrorKind::NotAWaveFile => "not a WAVE file",
-            FormatErrorKind::NotAnUncompressedPcmWaveFile(_) => "Not an uncompressed wave file",
-            FormatErrorKind::FmtChunkTooShort => "fmt_ chunk is too short",
-            FormatErrorKind::NumChannelsIsZero => "Number of channels is zero",
-            FormatErrorKind::SampleRateIsZero => "Sample rate is zero",
-            FormatErrorKind::UnsupportedBitsPerSample(_) => "Unsupported bits per sample",
-            FormatErrorKind::InvalidBitsPerSample(_, _) => {
+            ReadErrorKind::NotARiffFile => "not a RIFF file",
+            ReadErrorKind::NotAWaveFile => "not a WAVE file",
+            ReadErrorKind::NotAnUncompressedPcmWaveFile(_) => "Not an uncompressed wave file",
+            ReadErrorKind::FmtChunkTooShort => "fmt_ chunk is too short",
+            ReadErrorKind::NumChannelsIsZero => "Number of channels is zero",
+            ReadErrorKind::SampleRateIsZero => "Sample rate is zero",
+            ReadErrorKind::UnsupportedBitsPerSample(_) => "Unsupported bits per sample",
+            ReadErrorKind::InvalidBitsPerSample(_, _) => {
                 "A bits per sample of less than the container size is not currently supported"
             }
         }
     }
 }
 
-impl fmt::Display for FormatErrorKind {
+impl fmt::Display for ReadErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }
@@ -117,20 +117,20 @@ fn validate_pcm_format(format: u16) -> ReadResult<Format> {
     match format {
         FORMAT_UNCOMPRESSED_PCM => Ok(Format::UncompressedPcm),
         FORMAT_EXTENDED => Ok(Format::Extended),
-        _ => Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(format))),
+        _ => Err(ReadError::Format(ReadErrorKind::NotAnUncompressedPcmWaveFile(format))),
     }
 }
 
 fn validate_pcm_subformat(sub_format: u16) -> ReadResult<()> {
     match sub_format {
         FORMAT_UNCOMPRESSED_PCM => Ok(()),
-        _ => Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(sub_format))),
+        _ => Err(ReadError::Format(ReadErrorKind::NotAnUncompressedPcmWaveFile(sub_format))),
     }
 }
 
 fn validate_fmt_header_is_large_enough(size: u32, min_size: u32) -> ReadResult<()> {
     if size < min_size {
-        Err(ReadError::Format(FormatErrorKind::FmtChunkTooShort))
+        Err(ReadError::Format(ReadErrorKind::FmtChunkTooShort))
     } else {
         Ok(())
     }
@@ -161,13 +161,13 @@ trait ReadWaveExt: Read + Seek {
         }
 
         if num_channels == 0 {
-            return Err(ReadError::Format(FormatErrorKind::NumChannelsIsZero));
+            return Err(ReadError::Format(ReadErrorKind::NumChannelsIsZero));
         } else if sample_rate == 0 {
-            return Err(ReadError::Format(FormatErrorKind::SampleRateIsZero));
+            return Err(ReadError::Format(ReadErrorKind::SampleRateIsZero));
         } else if bits_per_sample != 8 && bits_per_sample != 16 
         	   && bits_per_sample != 24 && bits_per_sample != 32 {
             return Err(ReadError::Format(
-            	FormatErrorKind::UnsupportedBitsPerSample(bits_per_sample)));
+            	ReadErrorKind::UnsupportedBitsPerSample(bits_per_sample)));
         }
 
         Ok(PcmFormat {
@@ -189,7 +189,7 @@ trait ReadWaveExt: Read + Seek {
         if sample_info != bits_per_sample {
             // We don't currently support wave files where the bits per sample
             // doesn't entirely fill the allocated bits per sample.
-            return Err(ReadError::Format(FormatErrorKind::InvalidBitsPerSample(bits_per_sample,
+            return Err(ReadError::Format(ReadErrorKind::InvalidBitsPerSample(bits_per_sample,
                                                                                sample_info)));
         }
 
@@ -205,7 +205,7 @@ trait ReadWaveExt: Read + Seek {
     }
 
     fn validate_is_riff_file(&mut self) -> ReadResult<()> {
-        try!(self.validate_tag(b"RIFF", FormatErrorKind::NotARiffFile));
+        try!(self.validate_tag(b"RIFF", ReadErrorKind::NotARiffFile));
         // The next four bytes represent the chunk size. We're not going to
         // validate it, so that we can still try to read files that might have
         // an incorrect chunk size, so let's skip over it.
@@ -214,13 +214,13 @@ trait ReadWaveExt: Read + Seek {
     }
 
     fn validate_is_wave_file(&mut self) -> ReadResult<()> {
-        try!(self.validate_tag(b"WAVE", FormatErrorKind::NotAWaveFile));
+        try!(self.validate_tag(b"WAVE", ReadErrorKind::NotAWaveFile));
         Ok(())
     }
 
     fn validate_tag(&mut self,
                     expected_tag: &[u8; 4],
-                    err_kind: FormatErrorKind)
+                    err_kind: ReadErrorKind)
                     -> ReadResult<()> {
         let tag = try!(self.read_tag());
         if &tag != expected_tag {
@@ -266,6 +266,8 @@ pub struct WaveReader<T>
     // The underlying reader that we'll use to read data.
     reader: T,
 }
+
+// TODO what should we do if an incorrect read_* method is called? Return the error in the result?
 
 impl<T> WaveReader<T>
     where T: Read + Seek
@@ -321,7 +323,7 @@ mod tests {
 
     use super::super::{FORMAT_UNCOMPRESSED_PCM, FORMAT_EXTENDED};    
     use super::super::{Format, PcmFormat};
-    use super::{FormatErrorKind, ReadError, ReadWaveExt, WaveReader};      
+    use super::{ReadError, ReadErrorKind, ReadWaveExt, WaveReader};      
     use super::{validate_fmt_header_is_large_enough, validate_pcm_format, validate_pcm_subformat};
 
     // This is a helper macro that helps us validate results in our tests.
@@ -349,14 +351,14 @@ mod tests {
     #[test]
     fn test_validate_is_riff_file_err_incomplete() {
         let mut data = Cursor::new(b"RIF     ");
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::NotARiffFile)),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::NotARiffFile)),
                         data.validate_is_riff_file());
     }
 
     #[test]
     fn test_validate_is_riff_file_err_something_else() {
         let mut data = Cursor::new(b"JPEG     ");
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::NotARiffFile)),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::NotARiffFile)),
                         data.validate_is_riff_file());
     }
 
@@ -371,14 +373,14 @@ mod tests {
     #[test]
     fn test_validate_is_wave_file_err_incomplete() {
         let mut data = Cursor::new(b"WAV ");
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::NotAWaveFile)),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::NotAWaveFile)),
                         data.validate_is_wave_file());
     }
 
     #[test]
     fn test_validate_is_wave_file_err_something_else() {
         let mut data = Cursor::new(b"JPEG");
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::NotAWaveFile)),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::NotAWaveFile)),
                         data.validate_is_wave_file());
     }
 
@@ -436,7 +438,7 @@ mod tests {
 
     #[test]
     fn test_validate_pcm_format_err_not_uncompressed() {
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(_))),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::NotAnUncompressedPcmWaveFile(_))),
         				validate_pcm_format(12345));
     }
 
@@ -449,13 +451,13 @@ mod tests {
 
     #[test]
     fn test_validate_pcm_subformat_err_extended_format_value_not_valid_for_subformat() {
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(_))),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::NotAnUncompressedPcmWaveFile(_))),
             			validate_pcm_subformat(FORMAT_EXTENDED));
     }
 
     #[test]
     fn test_validate_pcm_subformat_err_not_uncompressed() {
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(_))),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::NotAnUncompressedPcmWaveFile(_))),
 						validate_pcm_subformat(12345));
     }
 
@@ -473,7 +475,7 @@ mod tests {
 
     #[test]
     fn test_validate_fmt_header_is_large_enough_too_small() {
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::FmtChunkTooShort)),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::FmtChunkTooShort)),
                         validate_fmt_header_is_large_enough(14, 16));
     }
 
@@ -490,7 +492,7 @@ mod tests {
     fn test_validate_pcm_header_fmt_chunk_too_small() {
         let mut data = Cursor::new(b"RIFF    WAVE\
                                      fmt \x0C\x00\x00\x00");
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::FmtChunkTooShort)),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::FmtChunkTooShort)),
                         data.read_wave_header());
     }
 
@@ -499,7 +501,7 @@ mod tests {
         let mut data = Cursor::new(b"RIFF    WAVE\
                                      fmt \x0E\x00\x00\x00\
                                      \x01\x00");
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::FmtChunkTooShort)),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::FmtChunkTooShort)),
                         data.read_wave_header());
     }
 
@@ -508,7 +510,7 @@ mod tests {
         let mut data = Cursor::new(b"RIFF    WAVE\
                                      fmt \x0E\x00\x00\x00\
                                      \x02\x00");
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(_))),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::NotAnUncompressedPcmWaveFile(_))),
             			data.read_wave_header());
     }
 
@@ -522,7 +524,7 @@ mod tests {
                                      \x00\x00\x00\x00\
                                      \x00\x00\
                                      \x00\x00" as &[u8]);
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::NumChannelsIsZero)),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::NumChannelsIsZero)),
                         data.read_wave_header());
     }
 
@@ -536,7 +538,7 @@ mod tests {
                                      \x00\x00\x00\x00\
                                      \x00\x00\
                                      \x00\x00" as &[u8]);
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::SampleRateIsZero)),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::SampleRateIsZero)),
                         data.read_wave_header());
     }
 
@@ -571,12 +573,12 @@ mod tests {
 
         vec[34] = 48;
         let mut cursor = Cursor::new(vec.clone());
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::UnsupportedBitsPerSample(_))),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::UnsupportedBitsPerSample(_))),
             			cursor.read_wave_header());
 
         vec[34] = 0;
         let mut cursor = Cursor::new(vec.clone());
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::UnsupportedBitsPerSample(_))),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::UnsupportedBitsPerSample(_))),
             			cursor.read_wave_header());
     }
 
@@ -639,7 +641,7 @@ mod tests {
 		                        \x02\x00\x00\x00");
         let mut cursor = Cursor::new(vec.clone());
 
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::FmtChunkTooShort)),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::FmtChunkTooShort)),
                         cursor.read_wave_header());
     }
 
@@ -660,7 +662,7 @@ mod tests {
 		                        \x09\x00\x00\x00\x00\x00\x10\x00\x80\x00\x00\xAA\x00\x38\x9B\x71");
         let mut cursor = Cursor::new(vec.clone());
 
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(_))),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::NotAnUncompressedPcmWaveFile(_))),
             			cursor.read_wave_header());
     }
 
@@ -681,7 +683,7 @@ mod tests {
 		                        \x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00");
         let mut cursor = Cursor::new(vec.clone());
 
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::InvalidBitsPerSample(_, _))),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::InvalidBitsPerSample(_, _))),
                         cursor.read_wave_header());
     }
 
@@ -734,7 +736,7 @@ mod tests {
     fn test_validate_extended_format_too_short() {
         // Extended size is less than 22 -- should fail.
         let mut data = Cursor::new(b"\x0F\x00\x00\x00");
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::FmtChunkTooShort)),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::FmtChunkTooShort)),
                         data.validate_extended_format(16));
     }
 
@@ -745,7 +747,7 @@ mod tests {
                                      \x00\x00\x00\x00\
                                      \xFF\xFF\x00\x00\x00\x00\x00\x00\
                                      \x00\x00\x00\x00\x00\x00\x00\x00");
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::NotAnUncompressedPcmWaveFile(_))),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::NotAnUncompressedPcmWaveFile(_))),
             			data.validate_extended_format(16));
     }
 
@@ -756,7 +758,7 @@ mod tests {
                                      \x00\x00\x00\x00\
                                      \x01\x00\x00\x00\x00\x00\x00\x00\
                                      \x00\x00\x00\x00\x00\x00\x00\x00");
-        assert_matches!(Err(ReadError::Format(FormatErrorKind::InvalidBitsPerSample(_, _))),
+        assert_matches!(Err(ReadError::Format(ReadErrorKind::InvalidBitsPerSample(_, _))),
             			data.validate_extended_format(16));
     }
 
