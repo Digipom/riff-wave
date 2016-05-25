@@ -10,3 +10,6 @@ repository = "https://github.com/Digipom/riff-wave"
 
 [dependencies]
 byteorder = "0.5.1"
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+coreaudio-rs = "0.5.0"
