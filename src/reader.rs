@@ -151,12 +151,12 @@ trait ReadWaveExt: Read + Seek {
 
         let num_channels = try!(self.read_u16::<LittleEndian>());
         let sample_rate = try!(self.read_u32::<LittleEndian>());
-        let _ = try!(self.read_u32::<LittleEndian>());              // Byte rate. Not validated for now.
-        let _ = try!(self.read_u16::<LittleEndian>());              // Block align. Not validated for now.
+        let _ = try!(self.read_u32::<LittleEndian>());              // Byte rate, ignored.
+        let _ = try!(self.read_u16::<LittleEndian>());              // Block align, ignored.
         let bits_per_sample = try!(self.read_u16::<LittleEndian>());
 
-        match format {            
-            Format::UncompressedPcm => try!(self.skip_over_remainder(16, fmt_subchunk_size)),            
+        match format {
+            Format::UncompressedPcm => try!(self.skip_over_remainder(16, fmt_subchunk_size)),
             Format::Extended => try!(self.validate_extended_format(bits_per_sample)),
         }
 
@@ -182,7 +182,7 @@ trait ReadWaveExt: Read + Seek {
         try!(validate_fmt_header_is_large_enough(extra_info_size.into(), 22));
 
         let sample_info = try!(self.read_u16::<LittleEndian>());
-        let _ = try!(self.read_u32::<LittleEndian>());              // Channel mask, currently ignored.
+        let _ = try!(self.read_u32::<LittleEndian>());              // Channel mask, ignored.
         let _ = try!(validate_pcm_subformat(try!(self.read_u16::<LittleEndian>())));
         try!(self.skip_over_remainder(8, extra_info_size.into()));  // Ignore the rest of the GUID.
 
@@ -257,7 +257,7 @@ impl<T> ReadWaveExt for T where T: Read + Seek {}
 pub struct WaveReader<T>
     where T: Read + Seek
 {
-    ///  Represents the PCM format for this wave file.
+    /// Represents the PCM format for this wave file.
     pub pcm_format: PcmFormat,
 
     // The underlying reader that we'll use to read data.

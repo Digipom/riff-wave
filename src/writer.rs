@@ -71,9 +71,7 @@ impl From<io::Error> for WriteError {
 trait WriteWaveExt: Write + Seek {
     fn write_standard_wave_header(&mut self, pcm_format: &PcmFormat) -> io::Result<()> {
         try!(self.write_riff_wave_chunk_header());
-        try!(self.write_standard_fmt_subchunk(pcm_format.num_channels,
-                                              pcm_format.sample_rate,
-                                              pcm_format.bits_per_sample));
+        try!(self.write_standard_fmt_subchunk(pcm_format));
         try!(self.write_data_subchunk_header());
 
         Ok(())
@@ -87,11 +85,11 @@ trait WriteWaveExt: Write + Seek {
         Ok(())
     }
 
-    fn write_standard_fmt_subchunk(&mut self,
-                                   num_channels: u16,
-                                   sample_rate: u32,
-                                   bits_per_sample: u16)
-                                   -> io::Result<()> {
+    fn write_standard_fmt_subchunk(&mut self, pcm_format: &PcmFormat) -> io::Result<()> {
+        let num_channels = pcm_format.num_channels;
+        let sample_rate = pcm_format.sample_rate;
+        let bits_per_sample = pcm_format.bits_per_sample;
+
         if num_channels == 0 {
             panic!("The number of channels should be greater than zero.");
         } else if sample_rate == 0 {
@@ -136,10 +134,6 @@ trait WriteWaveExt: Write + Seek {
 
 impl<T> WriteWaveExt for T where T: Seek + Write {}
 
-fn clamp(n: i32, min: i32, max: i32) -> i32 {
-    cmp::min(cmp::max(n, min), max)
-}
-
 /// Helper struct that takes ownership of a writer and can be used to write data
 /// to a PCM wave file.
 #[derive(Debug)]
@@ -162,7 +156,8 @@ impl<T> WaveWriter<T>
 {
     /// Returns a new wave writer for the given writer.
     /// # Panics
-    /// Panics if num_channels or sample_rate is zero, or if bits_per_sample doesn't match 8, 16, 24, or 32.
+    /// Panics if num_channels or sample_rate is zero, or if bits_per_sample
+    /// doesn't match 8, 16, 24, or 32.
     pub fn new(num_channels: u16,
                sample_rate: u32,
                bits_per_sample: u16,
@@ -281,6 +276,12 @@ impl<T> Drop for WaveWriter<T>
     }
 }
 
+// Mark: Helper functions
+
+fn clamp(n: i32, min: i32, max: i32) -> i32 {
+    cmp::min(cmp::max(n, min), max)
+}
+
 // MARK: Tests
 
 #[cfg(test)]
@@ -324,8 +325,7 @@ mod tests {
 
     #[test]
     fn test_header_is_acceptable() {
-        let data = Vec::new();
-        let mut cursor = Cursor::new(data);
+        let mut cursor = Cursor::new(Vec::new());
         {
             let _ = WaveWriter::new(1, 44100, 16, cursor.by_ref()).unwrap();
         }
@@ -339,13 +339,20 @@ mod tests {
         assert_eq!(16, wave_reader.pcm_format.bits_per_sample);
     }
 
-    #[test]
-    fn test_header_sync_when_no_data_written() {
-        let data = Vec::new();
-        let mut cursor = Cursor::new(data);
+    // Header sync & drop validation tests
+
+    fn test_header_sync(explicit_sync: bool, write_count: u32) {
+        let mut cursor = Cursor::new(Vec::new());
         {
             let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor.by_ref()).unwrap();
-            wave_writer.sync_header().unwrap();
+
+            for i in 0..write_count {
+                wave_writer.write_sample_i16(i as i16).unwrap();
+            }
+
+            if explicit_sync {
+                wave_writer.sync_header().unwrap();
+            }
         }
 
         cursor.set_position(0);
@@ -354,103 +361,34 @@ mod tests {
         let cursor = wave_reader.into_inner();
         let data = cursor.into_inner();
 
-        assert_eq!(44, data.len());
+        assert_eq!(44 + write_count as usize * 2, data.len());
         // We're not currently surfacing the chunk/subchunk info in the reader
         // so just access the data directly.
+        assert_eq!(get_little_endian_bytes(36 + write_count * 2 as u32), &data[4..8]);
+        assert_eq!(get_little_endian_bytes(write_count * 2 as u32), &data[40..44]);
+    }
 
-        // Should match 36 in little-endian format.
-        assert_eq!(b"\x24\x00\x00\x00", &data[4..8]);
-
-        // Should match 0 in little-endian format.
-        assert_eq!(b"\x00\x00\x00\x00", &data[40..44]);
+    #[test]
+    fn test_header_sync_when_no_data_written() {
+        test_header_sync(true, 0);
     }
 
     #[test]
     fn test_header_sync_via_drop_when_no_data_written() {
-        let data = Vec::new();
-        let mut cursor = Cursor::new(data);
-        {
-            let _ = WaveWriter::new(1, 44100, 16, cursor.by_ref()).unwrap();
-        }
-
-        cursor.set_position(0);
-
-        let wave_reader = WaveReader::new(cursor).unwrap();
-        let cursor = wave_reader.into_inner();
-        let data = cursor.into_inner();
-
-        assert_eq!(44, data.len());
-        // We're not currently surfacing the chunk/subchunk info in the reader
-        // so just access the data directly.
-
-        // Should match 36 in little-endian format.
-        assert_eq!(b"\x24\x00\x00\x00", &data[4..8]);
-
-        // Should match 0 in little-endian format.
-        assert_eq!(b"\x00\x00\x00\x00", &data[40..44]);
+        test_header_sync(false, 0);
     }
 
     #[test]
     fn test_header_sync_when_ten_samples_written() {
-        let data = Vec::new();
-        let mut cursor = Cursor::new(data);
-        {
-            let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor.by_ref()).unwrap();
-
-            for i in 0..10 {
-                wave_writer.write_sample_i16(i as i16).unwrap();
-            }
-
-            wave_writer.sync_header().unwrap();
-        }
-
-        cursor.set_position(0);
-
-        let wave_reader = WaveReader::new(cursor).unwrap();
-        let cursor = wave_reader.into_inner();
-        let data = cursor.into_inner();
-
-        assert_eq!(64, data.len());
-        // We're not currently surfacing the chunk/subchunk info in the reader
-        // so just access the data directly.
-
-        // Should match 56 in little-endian format.
-        assert_eq!(b"\x38\x00\x00\x00", &data[4..8]);
-
-        // Should match 20 in little-endian format.
-        assert_eq!(b"\x14\x00\x00\x00", &data[40..44]);
+        test_header_sync(true, 10);
     }
 
     #[test]
     fn test_header_sync_via_drop_when_ten_samples_written() {
-        let data = Vec::new();
-        let mut cursor = Cursor::new(data);
-        {
-            let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor.by_ref()).unwrap();
-
-            for i in 0..10 {
-                wave_writer.write_sample_i16(i as i16).unwrap();
-            }
-        }
-
-        cursor.set_position(0);
-
-        let wave_reader = WaveReader::new(cursor).unwrap();
-        let cursor = wave_reader.into_inner();
-        let data = cursor.into_inner();
-
-        assert_eq!(64, data.len());
-        // We're not currently surfacing the chunk/subchunk info in the reader
-        // so just access the data directly.
-
-        // Should match 56 in little-endian format.
-        assert_eq!(b"\x38\x00\x00\x00", &data[4..8]);
-
-        // Should match 20 in little-endian format.
-        assert_eq!(b"\x14\x00\x00\x00", &data[40..44]);
+        test_header_sync(false, 10);
     }
 
-    // Write validation tests
+    // Overflow tests
 
     #[test]
     fn test_clamp() {
@@ -463,9 +401,7 @@ mod tests {
 
     #[test]
     fn test_24_bit_doesnt_panic_when_out_of_range() {
-        let data = Vec::new();
-        let cursor = Cursor::new(data);
-        let mut wave_writer = WaveWriter::new(1, 44100, 24, cursor).unwrap();
+        let mut wave_writer = WaveWriter::new(1, 44100, 24, Cursor::new(Vec::new())).unwrap();
 
         wave_writer.write_sample_i24(i32::min_value()).unwrap();
         wave_writer.write_sample_i24(i32::max_value()).unwrap();
@@ -473,8 +409,7 @@ mod tests {
 
     #[test]
     fn test_24_bit_accepts_range() {
-        let data = Vec::new();
-        let mut cursor = Cursor::new(data);
+        let mut cursor = Cursor::new(Vec::new());
         {
             let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor.by_ref()).unwrap();
 
@@ -495,111 +430,80 @@ mod tests {
 
     #[test]
     fn test_overflow_8bit() {
-        let data = Vec::new();
-        let cursor = Cursor::new(data);
-        let mut wave_writer = WaveWriter::new(1, 44100, 8, cursor).unwrap();
-
-        // Make it believe we are close to overflow:
-        wave_writer.written_samples = u32::max_value() - 44;
-
-        // The next write should overflow
-        assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_u8(5));
+        test_overflow(8, |wave_writer| wave_writer.write_sample_u8(5));
     }
 
     #[test]
     fn test_overflow_16bit() {
-        let data = Vec::new();
-        let cursor = Cursor::new(data);
-        let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor).unwrap();
-
-        // Make it believe we are close to overflow:
-        wave_writer.written_samples = (u32::max_value() - 44) / 2;
-
-        // The next write should overflow
-        assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_i16(5));
+        test_overflow(16, |wave_writer| wave_writer.write_sample_i16(5));
     }
 
     #[test]
     fn test_overflow_24bit() {
-        let data = Vec::new();
-        let cursor = Cursor::new(data);
-        let mut wave_writer = WaveWriter::new(1, 44100, 24, cursor).unwrap();
-
-        // Make it believe we are close to overflow:
-        wave_writer.written_samples = (u32::max_value() - 44) / 3;
-
-        // The next write should overflow
-        assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_i24(5));
+        test_overflow(24, |wave_writer| wave_writer.write_sample_i24(5));
     }
 
     #[test]
     fn test_overflow_32bit() {
-        let data = Vec::new();
-        let cursor = Cursor::new(data);
-        let mut wave_writer = WaveWriter::new(1, 44100, 32, cursor).unwrap();
+        test_overflow(32, |wave_writer| wave_writer.write_sample_i32(5));
+    }
+
+    fn test_overflow<F>(bits_per_sample: u16, write_sample: F)
+        where F: Fn(&mut WaveWriter<Cursor<Vec<u8>>>) -> WriteResult<()>
+    {
+        let mut wave_writer = WaveWriter::new(1, 44100, bits_per_sample, Cursor::new(Vec::new()))
+            .unwrap();
 
         // Make it believe we are close to overflow:
-        wave_writer.written_samples = (u32::max_value() - 44) / 4;
+        wave_writer.written_samples = (u32::max_value() - 44) / (bits_per_sample as u32 / 8);
 
         // The next write should overflow
-        assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_i32(5));
+        assert_matches!(Err(WriteError::ExceededMaxSize), write_sample(&mut wave_writer));
     }
 
     #[test]
     fn test_overflow_doesnt_let_us_start_an_incomplete_frame_8bit() {
-        let data = Vec::new();
-        let cursor = Cursor::new(data);
-        let mut wave_writer = WaveWriter::new(5, 44100, 8, cursor).unwrap();
-
-        // With this value, we should still be able to write one more 5-channel
-        // frame, but should hit a failure when we start the second frame.
-
-        wave_writer.written_samples = u32::max_value() - 44;
-        // Make sure we have an incomplete frame at the end.
-        assert!(wave_writer.written_samples % 5 != 0);
-        wave_writer.written_samples -= wave_writer.written_samples % 5;
-        // Make room for one full frame.
-        wave_writer.written_samples -= 5;
-
-        // First frame should be OK.
-        wave_writer.write_sample_u8(5).unwrap();
-        wave_writer.write_sample_u8(5).unwrap();
-        wave_writer.write_sample_u8(5).unwrap();
-        wave_writer.write_sample_u8(5).unwrap();
-        wave_writer.write_sample_u8(5).unwrap();
-
-        // Starting the next frame should overflow, even though we still have
-        // room to write one more sample.
-        assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_u8(5));
+        test_overflow_doesnt_let_us_start_an_incomplete_frame(5, 8, |wave_writer| {
+            wave_writer.write_sample_u8(5)
+        });
     }
 
     #[test]
     fn test_overflow_doesnt_let_us_start_an_incomplete_frame_16bit() {
-        let data = Vec::new();
-        let cursor = Cursor::new(data);
-        let mut wave_writer = WaveWriter::new(6, 44100, 16, cursor).unwrap();
+        test_overflow_doesnt_let_us_start_an_incomplete_frame(6, 16, |wave_writer| {
+            wave_writer.write_sample_i16(5)
+        });
+    }
 
-        // With this value, we should still be able to write one more 6-channel
+    fn test_overflow_doesnt_let_us_start_an_incomplete_frame<F>(num_channels: u16,
+                                                                bits_per_sample: u16,
+                                                                write_sample: F)
+        where F: Fn(&mut WaveWriter<Cursor<Vec<u8>>>) -> WriteResult<()>
+    {
+        let mut wave_writer = WaveWriter::new(num_channels,
+                                              44100,
+                                              bits_per_sample,
+                                              Cursor::new(Vec::new()))
+            .unwrap();
+
+        // With this value, we should still be able to write one more 5-channel
         // frame, but should hit a failure when we start the second frame.
 
-        wave_writer.written_samples = (u32::max_value() - 44) / 2;
+        wave_writer.written_samples = (u32::max_value() - 44) / (bits_per_sample as u32 / 8);
         // Make sure we have an incomplete frame at the end.
-        assert!(wave_writer.written_samples % 6 != 0);
-        wave_writer.written_samples -= wave_writer.written_samples % 6;
+        assert!(wave_writer.written_samples % num_channels as u32 != 0);
+        wave_writer.written_samples -= wave_writer.written_samples % num_channels as u32;
         // Make room for one full frame.
-        wave_writer.written_samples -= 6;
+        wave_writer.written_samples -= num_channels as u32;
 
         // First frame should be OK.
-        wave_writer.write_sample_i16(5).unwrap();
-        wave_writer.write_sample_i16(5).unwrap();
-        wave_writer.write_sample_i16(5).unwrap();
-        wave_writer.write_sample_i16(5).unwrap();
-        wave_writer.write_sample_i16(5).unwrap();
-        wave_writer.write_sample_i16(5).unwrap();
+        for _ in 0..num_channels {
+            write_sample(&mut wave_writer).unwrap();
+        }
 
         // Starting the next frame should overflow, even though we still have
-        // room to write three more samples.
-        assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_i16(5));
+        // room to write one more sample.
+        assert_matches!(Err(WriteError::ExceededMaxSize), write_sample(&mut wave_writer));
     }
 
     // Write validation tests
