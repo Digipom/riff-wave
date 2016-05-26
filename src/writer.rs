@@ -96,7 +96,7 @@ impl From<io::Error> for WriteError {
 // MARK: Writing functions
 
 trait WriteWaveExt: Write + Seek {
-    fn write_standard_wave_header(&mut self, pcm_format: &PcmFormat) -> WriteResult<()> {
+    fn write_standard_wave_header(&mut self, pcm_format: &PcmFormat) -> io::Result<()> {
         try!(self.write_riff_wave_chunk_header());
         try!(self.write_standard_fmt_subchunk(pcm_format.num_channels,
                                               pcm_format.sample_rate,
@@ -106,7 +106,7 @@ trait WriteWaveExt: Write + Seek {
         Ok(())
     }
 
-    fn write_riff_wave_chunk_header(&mut self) -> WriteResult<()> {
+    fn write_riff_wave_chunk_header(&mut self) -> io::Result<()> {
         try!(self.write_all(b"RIFF"));                      // Identifier
         try!(self.write_u32_l(36));                         // File size (header) minus eight bytes
         try!(self.write_all(b"WAVE"));                      // Identifier
@@ -118,14 +118,14 @@ trait WriteWaveExt: Write + Seek {
                                    num_channels: u16,
                                    sample_rate: u32,
                                    bits_per_sample: u16)
-                                   -> WriteResult<()> {
+                                   -> io::Result<()> {
         if num_channels == 0 {
-            return Err(WriteError::Format(WriteErrorKind::NumChannelsIsZero));
+            panic!("The number of channels should be greater than zero.");
         } else if sample_rate == 0 {
-            return Err(WriteError::Format(WriteErrorKind::SampleRateIsZero));
-        } else if bits_per_sample != 8 && bits_per_sample != 16 && bits_per_sample != 24 &&
-           bits_per_sample != 32 {
-            return Err(WriteError::Format(WriteErrorKind::UnsupportedBitsPerSample(bits_per_sample)));
+            panic!("The sample rate should be greater than zero.");            
+        } else if bits_per_sample != 8 && bits_per_sample != 16 
+               && bits_per_sample != 24 && bits_per_sample != 32 {
+            panic!("The bits per sample needs to be either 8, 16, 24, or 32.");            
         }
 
         try!(self.write_all(b"fmt "));                      // "fmt " chunk and size
@@ -145,7 +145,7 @@ trait WriteWaveExt: Write + Seek {
         Ok(())
     }
 
-    fn write_data_subchunk_header(&mut self) -> WriteResult<()> {
+    fn write_data_subchunk_header(&mut self) -> io::Result<()> {
         try!(self.write_all(b"data"));                      // Start of "data" subchunk
         try!(self.write_u32_l(0));                          // Size of data subchunk.
 
@@ -188,6 +188,8 @@ impl<T> WaveWriter<T>
     where T: Seek + Write
 {
     /// Returns a new wave writer for the given writer.
+    /// # Panics
+    /// Panics if num_channels or sample_rate is zero, or if bits_per_sample doesn't match 8, 16, 24, or 32.
     pub fn new(num_channels: u16,
                sample_rate: u32,
                bits_per_sample: u16,
@@ -279,24 +281,21 @@ mod tests {
     // Validation tests
 
     #[test]
+    #[should_panic]
     fn test_validate_doesnt_accept_zero_channels() {
         let wave_writer = WaveWriter::new(0, 44100, 16, Cursor::new(Vec::new()));
-        assert_matches!(Err(WriteError::Format(WriteErrorKind::NumChannelsIsZero)),
-                        wave_writer);
     }
 
     #[test]
+    #[should_panic]
     fn test_validate_doesnt_accept_zero_sample_rate() {
         let wave_writer = WaveWriter::new(1, 0, 16, Cursor::new(Vec::new()));
-        assert_matches!(Err(WriteError::Format(WriteErrorKind::SampleRateIsZero)),
-                        wave_writer);
     }
 
     #[test]
+    #[should_panic]
     fn test_validate_doesnt_accept_invalid_bitrate() {
         let wave_writer = WaveWriter::new(1, 44100, 12, Cursor::new(Vec::new()));
-        assert_matches!(Err(WriteError::Format(WriteErrorKind::UnsupportedBitsPerSample(12))),
-                        wave_writer);
     }
 
     #[test]
