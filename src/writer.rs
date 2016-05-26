@@ -206,7 +206,7 @@ impl<T> WaveWriter<T>
     {
         try!(self.do_overflow_check_for_next_sample());
         try!(write_data(&mut self.writer, sample));
-        self.written_samples = self.written_samples + 1;
+        self.written_samples += 1;
         Ok(())
     }
 

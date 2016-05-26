@@ -183,7 +183,7 @@ trait ReadWaveExt: Read + Seek {
 
         let sample_info = try!(self.read_u16::<LittleEndian>());
         let _ = try!(self.read_u32::<LittleEndian>());              // Channel mask, ignored.
-        let _ = try!(validate_pcm_subformat(try!(self.read_u16::<LittleEndian>())));
+        try!(validate_pcm_subformat(try!(self.read_u16::<LittleEndian>())));
         try!(self.skip_over_remainder(8, extra_info_size.into()));  // Ignore the rest of the GUID.
 
         if sample_info != bits_per_sample {
