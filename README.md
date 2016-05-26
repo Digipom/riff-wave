@@ -1,2 +1,2 @@
 # riff-wave
-Methods for reading PCM wave files. Very incomplete at the present time.
+Simple methods for reading and writing PCM wave files.

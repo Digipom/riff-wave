@@ -285,12 +285,13 @@ impl<T> Drop for WaveWriter<T>
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
-    use std::io::Write;
+    use std::io::{Cursor, Write};
+
+    use byteorder::{LittleEndian, WriteBytesExt};
 
     use super::super::WaveReader;
     use super::super::{MIN_I24_VALUE, MAX_I24_VALUE};
-    use super::{WriteError, WaveWriter};
+    use super::{WaveWriter, WriteError, WriteResult};
     use super::clamp;
 
     // Validation tests
@@ -336,6 +337,117 @@ mod tests {
         assert_eq!(1, wave_reader.pcm_format.num_channels);
         assert_eq!(44100, wave_reader.pcm_format.sample_rate);
         assert_eq!(16, wave_reader.pcm_format.bits_per_sample);
+    }
+
+    #[test]
+    fn test_header_sync_when_no_data_written() {
+        let data = Vec::new();
+        let mut cursor = Cursor::new(data);
+        {
+            let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor.by_ref()).unwrap();
+            wave_writer.sync_header().unwrap();
+        }
+
+        cursor.set_position(0);
+
+        let wave_reader = WaveReader::new(cursor).unwrap();
+        let cursor = wave_reader.into_inner();
+        let data = cursor.into_inner();
+
+        assert_eq!(44, data.len());
+        // We're not currently surfacing the chunk/subchunk info in the reader
+        // so just access the data directly.
+
+        // Should match 36 in little-endian format.
+        assert_eq!(b"\x24\x00\x00\x00", &data[4..8]);
+
+        // Should match 0 in little-endian format.
+        assert_eq!(b"\x00\x00\x00\x00", &data[40..44]);
+    }
+
+    #[test]
+    fn test_header_sync_via_drop_when_no_data_written() {
+        let data = Vec::new();
+        let mut cursor = Cursor::new(data);
+        {
+            let _ = WaveWriter::new(1, 44100, 16, cursor.by_ref()).unwrap();
+        }
+
+        cursor.set_position(0);
+
+        let wave_reader = WaveReader::new(cursor).unwrap();
+        let cursor = wave_reader.into_inner();
+        let data = cursor.into_inner();
+
+        assert_eq!(44, data.len());
+        // We're not currently surfacing the chunk/subchunk info in the reader
+        // so just access the data directly.
+
+        // Should match 36 in little-endian format.
+        assert_eq!(b"\x24\x00\x00\x00", &data[4..8]);
+
+        // Should match 0 in little-endian format.
+        assert_eq!(b"\x00\x00\x00\x00", &data[40..44]);
+    }
+
+    #[test]
+    fn test_header_sync_when_ten_samples_written() {
+        let data = Vec::new();
+        let mut cursor = Cursor::new(data);
+        {
+            let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor.by_ref()).unwrap();
+
+            for i in 0..10 {
+                wave_writer.write_sample_i16(i as i16).unwrap();
+            }
+
+            wave_writer.sync_header().unwrap();
+        }
+
+        cursor.set_position(0);
+
+        let wave_reader = WaveReader::new(cursor).unwrap();
+        let cursor = wave_reader.into_inner();
+        let data = cursor.into_inner();
+
+        assert_eq!(64, data.len());
+        // We're not currently surfacing the chunk/subchunk info in the reader
+        // so just access the data directly.
+
+        // Should match 56 in little-endian format.
+        assert_eq!(b"\x38\x00\x00\x00", &data[4..8]);
+
+        // Should match 20 in little-endian format.
+        assert_eq!(b"\x14\x00\x00\x00", &data[40..44]);
+    }
+
+    #[test]
+    fn test_header_sync_via_drop_when_ten_samples_written() {
+        let data = Vec::new();
+        let mut cursor = Cursor::new(data);
+        {
+            let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor.by_ref()).unwrap();
+
+            for i in 0..10 {
+                wave_writer.write_sample_i16(i as i16).unwrap();
+            }
+        }
+
+        cursor.set_position(0);
+
+        let wave_reader = WaveReader::new(cursor).unwrap();
+        let cursor = wave_reader.into_inner();
+        let data = cursor.into_inner();
+
+        assert_eq!(64, data.len());
+        // We're not currently surfacing the chunk/subchunk info in the reader
+        // so just access the data directly.
+
+        // Should match 56 in little-endian format.
+        assert_eq!(b"\x38\x00\x00\x00", &data[4..8]);
+
+        // Should match 20 in little-endian format.
+        assert_eq!(b"\x14\x00\x00\x00", &data[40..44]);
     }
 
     // Write validation tests
@@ -490,116 +602,77 @@ mod tests {
         assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_i16(5));
     }
 
+    // Write validation tests
+
     #[test]
-    fn test_header_sync_when_no_data_written() {
-        let data = Vec::new();
-        let mut cursor = Cursor::new(data);
-        {
-            let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor.by_ref()).unwrap();
-            wave_writer.sync_header().unwrap();
-        }
-
-        cursor.set_position(0);
-
-        let wave_reader = WaveReader::new(cursor).unwrap();
-        let cursor = wave_reader.into_inner();
-        let data = cursor.into_inner();
-
-        assert_eq!(44, data.len());
-        // We're not currently surfacing the chunk/subchunk info in the reader
-        // so just access the data directly.
-
-        // Should match 36 in little-endian format.
-        assert_eq!(b"\x24\x00\x00\x00", &data[4..8]);
-
-        // Should match 0 in little-endian format.
-        assert_eq!(b"\x00\x00\x00\x00", &data[40..44]);
+    fn test_writing_8bit() {
+        test_writing(8,
+                     |wave_writer, x| wave_writer.write_sample_u8(x as u8),
+                     |wave_reader, x| wave_reader.read_sample_u8().unwrap() == x as u8);
     }
 
     #[test]
-    fn test_header_sync_via_drop_when_no_data_written() {
-        let data = Vec::new();
-        let mut cursor = Cursor::new(data);
-        {
-            let _ = WaveWriter::new(1, 44100, 16, cursor.by_ref()).unwrap();            
-        }
-
-        cursor.set_position(0);
-
-        let wave_reader = WaveReader::new(cursor).unwrap();
-        let cursor = wave_reader.into_inner();
-        let data = cursor.into_inner();
-
-        assert_eq!(44, data.len());
-        // We're not currently surfacing the chunk/subchunk info in the reader
-        // so just access the data directly.
-
-        // Should match 36 in little-endian format.
-        assert_eq!(b"\x24\x00\x00\x00", &data[4..8]);
-
-        // Should match 0 in little-endian format.
-        assert_eq!(b"\x00\x00\x00\x00", &data[40..44]);
+    fn test_writing_16bit() {
+        test_writing(16,
+                     |wave_writer, x| wave_writer.write_sample_i16(x as i16 * 100),
+                     |wave_reader, x| wave_reader.read_sample_i16().unwrap() == x as i16 * 100);
     }
 
     #[test]
-    fn test_header_sync_when_ten_samples_written() {
-        let data = Vec::new();
-        let mut cursor = Cursor::new(data);
-        {
-            let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor.by_ref()).unwrap();
-
-            for i in 0..10 {
-                wave_writer.write_sample_i16(i as i16).unwrap();
-            }
-
-            wave_writer.sync_header().unwrap();
-        }
-
-        cursor.set_position(0);
-
-        let wave_reader = WaveReader::new(cursor).unwrap();
-        let cursor = wave_reader.into_inner();
-        let data = cursor.into_inner();
-
-        assert_eq!(64, data.len());
-        // We're not currently surfacing the chunk/subchunk info in the reader
-        // so just access the data directly.
-
-        // Should match 56 in little-endian format.
-        assert_eq!(b"\x38\x00\x00\x00", &data[4..8]);
-
-        // Should match 20 in little-endian format.
-        assert_eq!(b"\x14\x00\x00\x00", &data[40..44]);
+    fn test_writing_24bit() {
+        test_writing(24,
+                     |wave_writer, x| wave_writer.write_sample_i24(x as i32 * 32767),
+                     |wave_reader, x| wave_reader.read_sample_i24().unwrap() == x as i32 * 32767);
     }
 
     #[test]
-    fn test_header_sync_via_drop_when_ten_samples_written() {
+    fn test_writing_32bit() {
+        test_writing(32,
+                     |wave_writer, x| wave_writer.write_sample_i32(x as i32 * 8000000),
+                     |wave_reader, x| wave_reader.read_sample_i32().unwrap() == x as i32 * 8000000);
+    }
+
+    fn test_writing<F, G>(bits_per_sample: u16, write_sample: F, read_and_check_equal: G)
+        where F: Fn(&mut WaveWriter<&mut Cursor<Vec<u8>>>, i32) -> WriteResult<()>,
+              G: Fn(&mut WaveReader<Cursor<Vec<u8>>>, i32) -> bool
+    {
         let data = Vec::new();
         let mut cursor = Cursor::new(data);
         {
-            let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor.by_ref()).unwrap();
+            let mut wave_writer = WaveWriter::new(1, 44100, bits_per_sample, cursor.by_ref())
+                .unwrap();
 
-            for i in 0..10 {
-                wave_writer.write_sample_i16(i as i16).unwrap();
+            for i in 0..256 {
+                write_sample(&mut wave_writer, i).unwrap();
             }
         }
 
         cursor.set_position(0);
 
-        let wave_reader = WaveReader::new(cursor).unwrap();
+        let mut wave_reader = WaveReader::new(cursor).unwrap();
+
+        for i in 0..256 {
+            assert!(read_and_check_equal(&mut wave_reader, i));
+        }
+
         let cursor = wave_reader.into_inner();
         let data = cursor.into_inner();
 
-        assert_eq!(64, data.len());
+        let expected_data_size = 256 * bits_per_sample / 8;
+        assert_eq!(44 + expected_data_size as usize, data.len());
+
         // We're not currently surfacing the chunk/subchunk info in the reader
         // so just access the data directly.
-
-        // Should match 56 in little-endian format.
-        assert_eq!(b"\x38\x00\x00\x00", &data[4..8]);
-
-        // Should match 20 in little-endian format.
-        assert_eq!(b"\x14\x00\x00\x00", &data[40..44]);
+        assert_eq!(get_little_endian_bytes(36 + expected_data_size as u32), &data[4..8]);
+        assert_eq!(get_little_endian_bytes(expected_data_size as u32), &data[40..44]);
     }
 
-    // TODO test header
+    fn get_little_endian_bytes(n: u32) -> [u8; 4] {
+        let mut buf: [u8; 4] = [0; 4];
+        {
+            let mut cursor = Cursor::new(&mut buf[..]);
+            cursor.write_u32::<LittleEndian>(n).unwrap();
+        }
+        buf
+    }
 }
