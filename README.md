@@ -47,4 +47,6 @@ fn write_wave() -> WriteResult<()> {
 }
 ```
 
-More info is available through cargo doc.
+## Documentation
+
+Documentation is available via `cargo doc` or [via this link](https://digipom.github.io/riff-wave/doc/riff_wave/index.html).
