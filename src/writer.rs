@@ -25,7 +25,7 @@ use super::{FORMAT_UNCOMPRESSED_PCM, MAX_I24_VALUE, MIN_I24_VALUE};
 // MARK: Error types
 
 #[derive(Debug)]
-pub enum WriteError {    
+pub enum WriteError {
     /// Wave files are limited to 4GB in size.
     ExceededMaxSize,
     /// An IO error occurred.
@@ -219,10 +219,38 @@ impl<T> WaveWriter<T>
         let data_chunk_size = self.calculate_current_data_size();
         let riff_chunk_size = 36 + data_chunk_size;
         let file_size = 8 + riff_chunk_size;
+
+        // The file size after we finish writing a new frame should not exceed
+        // 4 GiB.
+
+        let num_channels = self.pcm_format.num_channels as u32;
         let sample_size = self.calculate_sample_size_in_bytes();
 
-        file_size.checked_add(sample_size).map_or(Err(WriteError::ExceededMaxSize), |x| Ok(()))
-    }    
+        // This is slightly conservative, but most wave files we deal with will
+        // probably be either 8-bit or 16-bit and mono or stereo, so we keep the
+        // more expensive check for the minority of cases, even if there are
+        // some combinations that don't need it.
+        if num_channels <= 2 && sample_size <= 2 {
+            // The remaining 4GiB space will evenly divide mono and stereo
+            // frames for 8-bit and 16-bit files, so we don't need to guard
+            // against incomplete frames.
+            file_size.checked_add(sample_size).map_or(Err(WriteError::ExceededMaxSize), |x| Ok(()))
+        } else {
+            let remaining_channels = num_channels - self.written_samples % num_channels;
+            let remaining_samples_for_frame = sample_size * remaining_channels;
+
+            file_size.checked_add(remaining_samples_for_frame)
+                .map_or(Err(WriteError::ExceededMaxSize), |x| Ok(()))
+        }
+    }
+
+    fn calculate_current_data_size(&self) -> u32 {
+        self.written_samples * self.calculate_sample_size_in_bytes()
+    }
+
+    fn calculate_sample_size_in_bytes(&self) -> u32 {
+        self.pcm_format.bits_per_sample as u32 / 8
+    }
 
     /// Updates the header at the beginning of the file with the new chunk sizes.
     pub fn sync_header(&mut self) -> io::Result<()> {
@@ -243,14 +271,6 @@ impl<T> WaveWriter<T>
         Ok(())
     }
 
-    fn calculate_current_data_size(&self) -> u32 {
-        self.written_samples * self.calculate_sample_size_in_bytes()
-    }
-
-    fn calculate_sample_size_in_bytes(&self) -> u32 {
-        self.pcm_format.bits_per_sample as u32 / 8    
-    }
-
     /// Consumes this writer, returning the underlying value.
     pub fn into_inner(self) -> T {
         self.writer
@@ -267,7 +287,6 @@ mod tests {
     use super::super::{MIN_I24_VALUE, MAX_I24_VALUE};
     use super::{WriteError, WaveWriter};
     use super::clamp;
-
 
     // Validation tests
 
@@ -332,7 +351,7 @@ mod tests {
 
         wave_writer.write_sample_i24(i32::min_value()).unwrap();
         wave_writer.write_sample_i24(i32::max_value()).unwrap();
-    }    
+    }
 
     #[test]
     fn test_overflow_8bit() {
@@ -344,7 +363,7 @@ mod tests {
         wave_writer.written_samples = u32::max_value() - 44;
 
         // The next write should overflow
-        assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_u8(5));            
+        assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_u8(5));
     }
 
     #[test]
@@ -354,10 +373,10 @@ mod tests {
         let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor).unwrap();
 
         // Make it believe we are close to overflow:
-        wave_writer.written_samples = (u32::max_value() / 2) - 22;
+        wave_writer.written_samples = (u32::max_value() - 44) / 2;
 
         // The next write should overflow
-        assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_i16(5));            
+        assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_i16(5));
     }
 
     #[test]
@@ -367,10 +386,10 @@ mod tests {
         let mut wave_writer = WaveWriter::new(1, 44100, 24, cursor).unwrap();
 
         // Make it believe we are close to overflow:
-        wave_writer.written_samples = (u32::max_value() / 3) - 15;
+        wave_writer.written_samples = (u32::max_value() - 44) / 3;
 
         // The next write should overflow
-        assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_i24(5));            
+        assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_i24(5));
     }
 
     #[test]
@@ -380,10 +399,67 @@ mod tests {
         let mut wave_writer = WaveWriter::new(1, 44100, 32, cursor).unwrap();
 
         // Make it believe we are close to overflow:
-        wave_writer.written_samples = (u32::max_value() / 4) - 11;
+        wave_writer.written_samples = (u32::max_value() - 44) / 4;
 
         // The next write should overflow
-        assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_i32(5));            
+        assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_i32(5));
+    }
+
+    #[test]
+    fn test_overflow_doesnt_let_us_start_an_incomplete_frame_8bit() {
+        let data = Vec::new();
+        let mut cursor = Cursor::new(data);
+        let mut wave_writer = WaveWriter::new(5, 44100, 8, cursor).unwrap();
+
+        // With this value, we should still be able to write one more 5-channel
+        // frame, but should hit a failure when we start the second frame.
+
+        wave_writer.written_samples = (u32::max_value() - 44);
+        // Make sure we have an incomplete frame at the end.
+        assert!(wave_writer.written_samples % 5 != 0);
+        wave_writer.written_samples -= wave_writer.written_samples % 5;
+        // Make room for one full frame.
+        wave_writer.written_samples -= 5;
+
+        // First frame should be OK.
+        wave_writer.write_sample_u8(5).unwrap();
+        wave_writer.write_sample_u8(5).unwrap();
+        wave_writer.write_sample_u8(5).unwrap();
+        wave_writer.write_sample_u8(5).unwrap();
+        wave_writer.write_sample_u8(5).unwrap();
+
+        // Starting the next frame should overflow, even though we still have
+        // room to write one more sample.
+        assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_u8(5));
+    }
+
+    #[test]
+    fn test_overflow_doesnt_let_us_start_an_incomplete_frame_16bit() {
+        let data = Vec::new();
+        let mut cursor = Cursor::new(data);
+        let mut wave_writer = WaveWriter::new(6, 44100, 16, cursor).unwrap();
+
+        // With this value, we should still be able to write one more 6-channel
+        // frame, but should hit a failure when we start the second frame.
+
+        wave_writer.written_samples = (u32::max_value() - 44) / 2;
+        // Make sure we have an incomplete frame at the end.
+        assert!(wave_writer.written_samples % 6 != 0);
+        wave_writer.written_samples -= wave_writer.written_samples % 6;
+        // Make room for one full frame.
+        wave_writer.written_samples -= 6;
+
+        // First frame should be OK.
+        wave_writer.write_sample_i16(5).unwrap();
+        wave_writer.write_sample_i16(5).unwrap();
+        wave_writer.write_sample_i16(5).unwrap();
+        wave_writer.write_sample_i16(5).unwrap();
+        wave_writer.write_sample_i16(5).unwrap();
+        wave_writer.write_sample_i16(5).unwrap();
+
+        // Starting the next frame should overflow, even though we still have
+        // room to write three more samples.
+        assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_i16(5));
     }
 
     #[test]
