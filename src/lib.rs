@@ -162,8 +162,8 @@ pub use self::writer::{WaveWriter, WriteError, WriteErrorKind, WriteResult};
 pub const FORMAT_UNCOMPRESSED_PCM: u16 = 1;
 pub const FORMAT_EXTENDED: u16 = 65534;
 
-pub const MAX_I24_VALUE: i32 = 8388607;
 pub const MIN_I24_VALUE: i32 = -8388608;
+pub const MAX_I24_VALUE: i32 = 8388607;
 
 #[derive(Debug)]
 pub enum Format {
