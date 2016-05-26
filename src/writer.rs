@@ -517,6 +517,31 @@ mod tests {
     }
 
     #[test]
+    fn test_header_sync_via_drop_when_no_data_written() {
+        let data = Vec::new();
+        let mut cursor = Cursor::new(data);
+        {
+            let _ = WaveWriter::new(1, 44100, 16, cursor.by_ref()).unwrap();            
+        }
+
+        cursor.set_position(0);
+
+        let wave_reader = WaveReader::new(cursor).unwrap();
+        let cursor = wave_reader.into_inner();
+        let data = cursor.into_inner();
+
+        assert_eq!(44, data.len());
+        // We're not currently surfacing the chunk/subchunk info in the reader
+        // so just access the data directly.
+
+        // Should match 36 in little-endian format.
+        assert_eq!(b"\x24\x00\x00\x00", &data[4..8]);
+
+        // Should match 0 in little-endian format.
+        assert_eq!(b"\x00\x00\x00\x00", &data[40..44]);
+    }
+
+    #[test]
     fn test_header_sync_when_ten_samples_written() {
         let data = Vec::new();
         let mut cursor = Cursor::new(data);
@@ -528,6 +553,35 @@ mod tests {
             }
 
             wave_writer.sync_header().unwrap();
+        }
+
+        cursor.set_position(0);
+
+        let wave_reader = WaveReader::new(cursor).unwrap();
+        let cursor = wave_reader.into_inner();
+        let data = cursor.into_inner();
+
+        assert_eq!(64, data.len());
+        // We're not currently surfacing the chunk/subchunk info in the reader
+        // so just access the data directly.
+
+        // Should match 56 in little-endian format.
+        assert_eq!(b"\x38\x00\x00\x00", &data[4..8]);
+
+        // Should match 20 in little-endian format.
+        assert_eq!(b"\x14\x00\x00\x00", &data[40..44]);
+    }
+
+    #[test]
+    fn test_header_sync_via_drop_when_ten_samples_written() {
+        let data = Vec::new();
+        let mut cursor = Cursor::new(data);
+        {
+            let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor.by_ref()).unwrap();
+
+            for i in 0..10 {
+                wave_writer.write_sample_i16(i as i16).unwrap();
+            }
         }
 
         cursor.set_position(0);
