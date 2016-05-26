@@ -270,10 +270,14 @@ impl<T> WaveWriter<T>
 
         Ok(())
     }
+}
 
-    /// Consumes this writer, returning the underlying value.
-    pub fn into_inner(self) -> T {
-        self.writer
+impl<T> Drop for WaveWriter<T>
+    where T: Seek + Write
+{
+    fn drop(&mut self) {
+        // Make sure the header reflects the latest chunk sizes before we go away.
+        let _ = self.sync_header();
     }
 }
 
@@ -282,6 +286,7 @@ impl<T> WaveWriter<T>
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
+    use std::io::Write;
 
     use super::super::WaveReader;
     use super::super::{MIN_I24_VALUE, MAX_I24_VALUE};
@@ -319,9 +324,10 @@ mod tests {
     #[test]
     fn test_header_is_acceptable() {
         let data = Vec::new();
-        let cursor = Cursor::new(data);
-        let wave_writer = WaveWriter::new(1, 44100, 16, cursor).unwrap();
-        let mut cursor = wave_writer.into_inner();
+        let mut cursor = Cursor::new(data);
+        {
+            let _ = WaveWriter::new(1, 44100, 16, cursor.by_ref()).unwrap();
+        }
 
         cursor.set_position(0);
 
@@ -356,22 +362,23 @@ mod tests {
     #[test]
     fn test_24_bit_accepts_range() {
         let data = Vec::new();
-        let cursor = Cursor::new(data);
-        let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor).unwrap();
-        
-        wave_writer.write_sample_i24(i32::min_value()).unwrap();
-        wave_writer.write_sample_i24(MIN_I24_VALUE).unwrap();
-        wave_writer.write_sample_i24(MAX_I24_VALUE).unwrap();
-        wave_writer.write_sample_i24(i32::max_value()).unwrap();
+        let mut cursor = Cursor::new(data);
+        {
+            let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor.by_ref()).unwrap();
 
-        let mut cursor = wave_writer.into_inner();
+            wave_writer.write_sample_i24(i32::min_value()).unwrap();
+            wave_writer.write_sample_i24(MIN_I24_VALUE).unwrap();
+            wave_writer.write_sample_i24(MAX_I24_VALUE).unwrap();
+            wave_writer.write_sample_i24(i32::max_value()).unwrap();
+        }
+
         cursor.set_position(0);
 
         let mut wave_reader = WaveReader::new(cursor).unwrap();
         assert_eq!(MIN_I24_VALUE, wave_reader.read_sample_i24().unwrap());
         assert_eq!(MIN_I24_VALUE, wave_reader.read_sample_i24().unwrap());
         assert_eq!(MAX_I24_VALUE, wave_reader.read_sample_i24().unwrap());
-        assert_eq!(MAX_I24_VALUE, wave_reader.read_sample_i24().unwrap());      
+        assert_eq!(MAX_I24_VALUE, wave_reader.read_sample_i24().unwrap());
     }
 
     #[test]
@@ -486,10 +493,11 @@ mod tests {
     #[test]
     fn test_header_sync_when_no_data_written() {
         let data = Vec::new();
-        let cursor = Cursor::new(data);
-        let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor).unwrap();
-        wave_writer.sync_header().unwrap();
-        let mut cursor = wave_writer.into_inner();
+        let mut cursor = Cursor::new(data);
+        {
+            let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor.by_ref()).unwrap();
+            wave_writer.sync_header().unwrap();
+        }
 
         cursor.set_position(0);
 
@@ -511,16 +519,16 @@ mod tests {
     #[test]
     fn test_header_sync_when_ten_samples_written() {
         let data = Vec::new();
-        let cursor = Cursor::new(data);
-        let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor).unwrap();
+        let mut cursor = Cursor::new(data);
+        {
+            let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor.by_ref()).unwrap();
 
-        for i in 0..10 {
-            wave_writer.write_sample_i16(i as i16).unwrap();
+            for i in 0..10 {
+                wave_writer.write_sample_i16(i as i16).unwrap();
+            }
+
+            wave_writer.sync_header().unwrap();
         }
-
-        wave_writer.sync_header().unwrap();
-
-        let mut cursor = wave_writer.into_inner();
 
         cursor.set_position(0);
 
