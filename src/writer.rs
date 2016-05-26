@@ -234,13 +234,13 @@ impl<T> WaveWriter<T>
             // The remaining 4GiB space will evenly divide mono and stereo
             // frames for 8-bit and 16-bit files, so we don't need to guard
             // against incomplete frames.
-            file_size.checked_add(sample_size).map_or(Err(WriteError::ExceededMaxSize), |x| Ok(()))
+            file_size.checked_add(sample_size).map_or(Err(WriteError::ExceededMaxSize), |_| Ok(()))
         } else {
             let remaining_channels = num_channels - self.written_samples % num_channels;
             let remaining_samples_for_frame = sample_size * remaining_channels;
 
             file_size.checked_add(remaining_samples_for_frame)
-                .map_or(Err(WriteError::ExceededMaxSize), |x| Ok(()))
+                .map_or(Err(WriteError::ExceededMaxSize), |_| Ok(()))
         }
     }
 
@@ -293,19 +293,19 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_validate_doesnt_accept_zero_channels() {
-        let wave_writer = WaveWriter::new(0, 44100, 16, Cursor::new(Vec::new()));
+        let _ = WaveWriter::new(0, 44100, 16, Cursor::new(Vec::new()));
     }
 
     #[test]
     #[should_panic]
     fn test_validate_doesnt_accept_zero_sample_rate() {
-        let wave_writer = WaveWriter::new(1, 0, 16, Cursor::new(Vec::new()));
+        let _ = WaveWriter::new(1, 0, 16, Cursor::new(Vec::new()));
     }
 
     #[test]
     #[should_panic]
     fn test_validate_doesnt_accept_invalid_bitrate() {
-        let wave_writer = WaveWriter::new(1, 44100, 12, Cursor::new(Vec::new()));
+        let _ = WaveWriter::new(1, 44100, 12, Cursor::new(Vec::new()));
     }
 
     #[test]
@@ -319,7 +319,7 @@ mod tests {
     #[test]
     fn test_header_is_acceptable() {
         let data = Vec::new();
-        let mut cursor = Cursor::new(data);
+        let cursor = Cursor::new(data);
         let wave_writer = WaveWriter::new(1, 44100, 16, cursor).unwrap();
         let mut cursor = wave_writer.into_inner();
 
@@ -346,7 +346,7 @@ mod tests {
     #[test]
     fn test_24_bit_doesnt_panic_when_out_of_range() {
         let data = Vec::new();
-        let mut cursor = Cursor::new(data);
+        let cursor = Cursor::new(data);
         let mut wave_writer = WaveWriter::new(1, 44100, 24, cursor).unwrap();
 
         wave_writer.write_sample_i24(i32::min_value()).unwrap();
@@ -354,9 +354,30 @@ mod tests {
     }
 
     #[test]
+    fn test_24_bit_accepts_range() {
+        let data = Vec::new();
+        let cursor = Cursor::new(data);
+        let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor).unwrap();
+        
+        wave_writer.write_sample_i24(i32::min_value()).unwrap();
+        wave_writer.write_sample_i24(MIN_I24_VALUE).unwrap();
+        wave_writer.write_sample_i24(MAX_I24_VALUE).unwrap();
+        wave_writer.write_sample_i24(i32::max_value()).unwrap();
+
+        let mut cursor = wave_writer.into_inner();
+        cursor.set_position(0);
+
+        let mut wave_reader = WaveReader::new(cursor).unwrap();
+        assert_eq!(MIN_I24_VALUE, wave_reader.read_sample_i24().unwrap());
+        assert_eq!(MIN_I24_VALUE, wave_reader.read_sample_i24().unwrap());
+        assert_eq!(MAX_I24_VALUE, wave_reader.read_sample_i24().unwrap());
+        assert_eq!(MAX_I24_VALUE, wave_reader.read_sample_i24().unwrap());      
+    }
+
+    #[test]
     fn test_overflow_8bit() {
         let data = Vec::new();
-        let mut cursor = Cursor::new(data);
+        let cursor = Cursor::new(data);
         let mut wave_writer = WaveWriter::new(1, 44100, 8, cursor).unwrap();
 
         // Make it believe we are close to overflow:
@@ -369,7 +390,7 @@ mod tests {
     #[test]
     fn test_overflow_16bit() {
         let data = Vec::new();
-        let mut cursor = Cursor::new(data);
+        let cursor = Cursor::new(data);
         let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor).unwrap();
 
         // Make it believe we are close to overflow:
@@ -382,7 +403,7 @@ mod tests {
     #[test]
     fn test_overflow_24bit() {
         let data = Vec::new();
-        let mut cursor = Cursor::new(data);
+        let cursor = Cursor::new(data);
         let mut wave_writer = WaveWriter::new(1, 44100, 24, cursor).unwrap();
 
         // Make it believe we are close to overflow:
@@ -395,7 +416,7 @@ mod tests {
     #[test]
     fn test_overflow_32bit() {
         let data = Vec::new();
-        let mut cursor = Cursor::new(data);
+        let cursor = Cursor::new(data);
         let mut wave_writer = WaveWriter::new(1, 44100, 32, cursor).unwrap();
 
         // Make it believe we are close to overflow:
@@ -408,13 +429,13 @@ mod tests {
     #[test]
     fn test_overflow_doesnt_let_us_start_an_incomplete_frame_8bit() {
         let data = Vec::new();
-        let mut cursor = Cursor::new(data);
+        let cursor = Cursor::new(data);
         let mut wave_writer = WaveWriter::new(5, 44100, 8, cursor).unwrap();
 
         // With this value, we should still be able to write one more 5-channel
         // frame, but should hit a failure when we start the second frame.
 
-        wave_writer.written_samples = (u32::max_value() - 44);
+        wave_writer.written_samples = u32::max_value() - 44;
         // Make sure we have an incomplete frame at the end.
         assert!(wave_writer.written_samples % 5 != 0);
         wave_writer.written_samples -= wave_writer.written_samples % 5;
@@ -436,7 +457,7 @@ mod tests {
     #[test]
     fn test_overflow_doesnt_let_us_start_an_incomplete_frame_16bit() {
         let data = Vec::new();
-        let mut cursor = Cursor::new(data);
+        let cursor = Cursor::new(data);
         let mut wave_writer = WaveWriter::new(6, 44100, 16, cursor).unwrap();
 
         // With this value, we should still be able to write one more 6-channel
@@ -465,7 +486,7 @@ mod tests {
     #[test]
     fn test_header_sync_when_no_data_written() {
         let data = Vec::new();
-        let mut cursor = Cursor::new(data);
+        let cursor = Cursor::new(data);
         let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor).unwrap();
         wave_writer.sync_header().unwrap();
         let mut cursor = wave_writer.into_inner();
@@ -490,7 +511,7 @@ mod tests {
     #[test]
     fn test_header_sync_when_ten_samples_written() {
         let data = Vec::new();
-        let mut cursor = Cursor::new(data);
+        let cursor = Cursor::new(data);
         let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor).unwrap();
 
         for i in 0..10 {
