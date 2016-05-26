@@ -14,7 +14,7 @@ use std::cmp;
 use std::error;
 use std::fmt;
 use std::io;
-use std::io::{Seek, Write};
+use std::io::{Seek, SeekFrom, Write};
 use std::result;
 
 use byteorder::{LittleEndian, WriteBytesExt};
@@ -150,7 +150,7 @@ trait WriteWaveExt: Write + Seek {
         try!(self.write_u32_l(0));                          // Size of data subchunk.
 
         Ok(())
-    }
+    }    
 
     fn write_u16_l(&mut self, n: u16) -> io::Result<()> {
         self.write_u16::<LittleEndian>(n)
@@ -158,7 +158,7 @@ trait WriteWaveExt: Write + Seek {
 
     fn write_u32_l(&mut self, n: u32) -> io::Result<()> {
         self.write_u32::<LittleEndian>(n)
-    }
+    }    
 }
 
 impl<T> WriteWaveExt for T where T: Seek + Write {}
@@ -175,6 +175,9 @@ pub struct WaveWriter<T>
 {
     ///  Represents the PCM format for this wave file.
     pub pcm_format: PcmFormat,
+
+    // How many samples have been written.
+    written_samples: u32,
 
     // The underlying writer that we'll use to read data.
     writer: T,
@@ -200,10 +203,10 @@ impl<T> WaveWriter<T>
 
         Ok(WaveWriter {
             pcm_format: pcm_format,
+            written_samples: 0,
             writer: writer,
         })
     }
-
 
     /// Writes a single sample as an unsigned 8-bit value.
     pub fn write_sample_u8(&mut self, sample: u8) -> io::Result<()> {
@@ -212,8 +215,8 @@ impl<T> WaveWriter<T>
 
     /// Writes a single sample as a signed 16-bit value.
     pub fn write_sample_i16(&mut self, sample: i16) -> io::Result<()> {
-        self.write_sample(sample,
-                          |writer, sample| writer.write_i16::<LittleEndian>(sample))
+        self.write_sample(sample, |writer, sample| 
+            writer.write_i16::<LittleEndian>(sample))
     }
 
     /// Writes a single sample as a signed 24-bit value. The value will be truncated
@@ -227,14 +230,35 @@ impl<T> WaveWriter<T>
 
     /// Writes a single sample as a signed 32-bit value.
     pub fn write_sample_i32(&mut self, sample: i32) -> io::Result<()> {
-        self.write_sample(sample,
-                          |writer, sample| writer.write_i32::<LittleEndian>(sample))
+        self.write_sample(sample, |writer, sample| 
+            writer.write_i32::<LittleEndian>(sample))
     }
 
     fn write_sample<F, S>(&mut self, sample: S, write_data: F) -> io::Result<()>
         where F: Fn(&mut T, S) -> io::Result<()>
     {
-        Ok(try!(write_data(&mut self.writer, sample)))
+        try!(write_data(&mut self.writer, sample));
+        self.written_samples = self.written_samples + 1;
+        Ok(())
+    }
+
+    /// Updates the header at the beginning of the file with the new chunk sizes.
+    pub fn sync_header(&mut self) -> io::Result<()> {            
+        let data_chunk_size = self.written_samples * self.pcm_format.bits_per_sample as u32 / 8;
+        let riff_chunk_size = 36 + data_chunk_size;
+
+        // File size minus eight bytes     
+        try!(self.writer.seek(SeekFrom::Start(4)));   
+        try!(self.writer.write_u32_l(riff_chunk_size));
+
+        // Data size minus eight bytes     
+        try!(self.writer.seek(SeekFrom::Start(40)));   
+        try!(self.writer.write_u32_l(data_chunk_size));
+
+        // Seek back to the end so we can continue writing
+        try!(self.writer.seek(SeekFrom::End(0)));
+
+        Ok(())
     }
 
     /// Consumes this writer, returning the underlying value.
@@ -298,6 +322,64 @@ mod tests {
         assert_eq!(1, wave_reader.pcm_format.num_channels);
         assert_eq!(44100, wave_reader.pcm_format.sample_rate);
         assert_eq!(16, wave_reader.pcm_format.bits_per_sample);
+    }
+
+    // Write validation tests
+
+    #[test]
+    fn test_header_sync_when_no_data_written() {
+      let data = Vec::new();
+        let mut cursor = Cursor::new(data);
+        let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor).unwrap();
+        wave_writer.sync_header().unwrap();
+        let mut cursor = wave_writer.into_inner();
+
+        cursor.set_position(0);
+
+        let wave_reader = WaveReader::new(cursor).unwrap();        
+        let cursor = wave_reader.into_inner();
+        let data = cursor.into_inner();
+        
+        assert_eq!(44, data.len());
+        // We're not currently surfacing the chunk/subchunk info in the reader
+        // so just access the data directly.
+
+        // Should match 36 in little-endian format.
+        assert_eq!(b"\x24\x00\x00\x00", &data[4..8]);  
+
+        // Should match 0 in little-endian format.
+        assert_eq!(b"\x00\x00\x00\x00", &data[40..44]);  
+    }
+
+    #[test]
+    fn test_header_sync_when_ten_samples_written() {
+        let data = Vec::new();
+        let mut cursor = Cursor::new(data);
+        let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor).unwrap();
+
+        for i in 0..10 {
+            wave_writer.write_sample_i16(i as i16).unwrap();
+        }
+
+        wave_writer.sync_header().unwrap();
+
+        let mut cursor = wave_writer.into_inner();
+
+        cursor.set_position(0);
+
+        let wave_reader = WaveReader::new(cursor).unwrap();        
+        let cursor = wave_reader.into_inner();
+        let data = cursor.into_inner();
+        
+        assert_eq!(64, data.len());
+        // We're not currently surfacing the chunk/subchunk info in the reader
+        // so just access the data directly.
+
+        // Should match 56 in little-endian format.
+        assert_eq!(b"\x38\x00\x00\x00", &data[4..8]);  
+
+        // Should match 20 in little-endian format.
+        assert_eq!(b"\x14\x00\x00\x00", &data[40..44]);  
     }
 
     // TODO test header
