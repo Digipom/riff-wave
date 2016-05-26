@@ -10,6 +10,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cmp;
 use std::error;
 use std::fmt;
 use std::io;
@@ -19,7 +20,7 @@ use std::result;
 use byteorder::{LittleEndian, WriteBytesExt};
 
 use super::PcmFormat;
-use super::FORMAT_UNCOMPRESSED_PCM;
+use super::{FORMAT_UNCOMPRESSED_PCM, MAX_I24_VALUE, MIN_I24_VALUE};
 
 // MARK: Error types
 
@@ -97,7 +98,9 @@ impl From<io::Error> for WriteError {
 trait WriteWaveExt: Write + Seek {
     fn write_standard_wave_header(&mut self, pcm_format: &PcmFormat) -> WriteResult<()> {
         try!(self.write_riff_wave_chunk_header());
-        try!(self.write_standard_fmt_subchunk(pcm_format.num_channels, pcm_format.sample_rate, pcm_format.bits_per_sample));
+        try!(self.write_standard_fmt_subchunk(pcm_format.num_channels,
+                                              pcm_format.sample_rate,
+                                              pcm_format.bits_per_sample));
         try!(self.write_data_subchunk_header());
 
         Ok(())
@@ -160,6 +163,10 @@ trait WriteWaveExt: Write + Seek {
 
 impl<T> WriteWaveExt for T where T: Seek + Write {}
 
+fn clamp(n: i32, min: i32, max: i32) -> i32 {
+    cmp::min(cmp::max(n, min), max)
+}
+
 /// Helper struct that takes ownership of a writer and can be used to write data
 /// to a PCM wave file.
 #[derive(Debug)]
@@ -197,73 +204,81 @@ impl<T> WaveWriter<T>
         })
     }
 
+
+    /// Writes a single sample as an unsigned 8-bit value.
+    pub fn write_sample_u8(&mut self, sample: u8) -> io::Result<()> {
+        self.write_sample(sample, |writer, sample| writer.write_u8(sample))
+    }
+
+    /// Writes a single sample as a signed 16-bit value.
+    pub fn write_sample_i16(&mut self, sample: i16) -> io::Result<()> {
+        self.write_sample(sample,
+                          |writer, sample| writer.write_i16::<LittleEndian>(sample))
+    }
+
+    /// Writes a single sample as a signed 24-bit value. The value will be truncated
+    /// to fit in a 24-bit value.
+    pub fn write_sample_i24(&mut self, sample: i32) -> io::Result<()> {
+        self.write_sample(sample, |writer, sample| {
+            writer.write_int::<LittleEndian>(3, 
+                clamp(sample, MIN_I24_VALUE, MAX_I24_VALUE) as usize)
+        })
+    }
+
+    /// Writes a single sample as a signed 32-bit value.
+    pub fn write_sample_i32(&mut self, sample: i32) -> io::Result<()> {
+        self.write_sample(sample,
+                          |writer, sample| writer.write_i32::<LittleEndian>(sample))
+    }
+
+    fn write_sample<F, S>(&mut self, sample: S, write_data: F) -> io::Result<()>
+        where F: Fn(&mut T, S) -> io::Result<()>
+    {
+        Ok(try!(write_data(&mut self.writer, sample)))
+    }
+
     /// Consumes this writer, returning the underlying value.
     pub fn into_inner(self) -> T {
         self.writer
     }
-
-    /*
-    /// Reads a single sample as an unsigned 8-bit value.
-    pub fn read_sample_u8(&mut self) -> io::Result<u8> {
-        self.read_sample(|reader| reader.read_u8())
-    }
-
-    /// Reads a single sample as a signed 16-bit value.
-    pub fn read_sample_i16(&mut self) -> io::Result<i16> {
-        self.read_sample(|reader| reader.read_i16::<LittleEndian>())
-    }
-
-    /// Reads a single sample as a signed 24-bit value. The value will be padded
-    /// to fit in a 32-bit buffer.
-    pub fn read_sample_i24(&mut self) -> io::Result<i32> {
-        self.read_sample(|reader| reader.read_int::<LittleEndian>(3)).map(|x| x as i32)
-    }
-
-    /// Reads a single sample as a signed 32-bit value.
-    pub fn read_sample_i32(&mut self) -> io::Result<i32> {
-        self.read_sample(|reader| reader.read_i32::<LittleEndian>())
-    }
-
-    fn read_sample<F, S>(&mut self, read_data: F) -> io::Result<S>
-        where F: Fn(&mut T) -> io::Result<S>
-    {
-        Ok(try!(read_data(&mut self.reader)))
-    }*/
 }
 
 // MARK: Tests
 
 #[cfg(test)]
-mod tests {        
-    use std::io::Cursor;    
+mod tests {
+    use std::io::Cursor;
 
     use super::super::WaveReader;
-    use super::{WriteError, WriteErrorKind, WaveWriter};        
+    use super::{WriteError, WriteErrorKind, WaveWriter};
 
 
     // Validation tests
 
     #[test]
     fn test_validate_doesnt_accept_zero_channels() {
-    	let wave_writer = WaveWriter::new(0, 44100, 16, Cursor::new(Vec::new()));        
-        assert_matches!(Err(WriteError::Format(WriteErrorKind::NumChannelsIsZero)), wave_writer);
+        let wave_writer = WaveWriter::new(0, 44100, 16, Cursor::new(Vec::new()));
+        assert_matches!(Err(WriteError::Format(WriteErrorKind::NumChannelsIsZero)),
+                        wave_writer);
     }
 
     #[test]
     fn test_validate_doesnt_accept_zero_sample_rate() {
-    	let wave_writer = WaveWriter::new(1, 0, 16, Cursor::new(Vec::new()));        
-        assert_matches!(Err(WriteError::Format(WriteErrorKind::SampleRateIsZero)), wave_writer);
+        let wave_writer = WaveWriter::new(1, 0, 16, Cursor::new(Vec::new()));
+        assert_matches!(Err(WriteError::Format(WriteErrorKind::SampleRateIsZero)),
+                        wave_writer);
     }
 
     #[test]
     fn test_validate_doesnt_accept_invalid_bitrate() {
-    	let wave_writer = WaveWriter::new(1, 44100, 12, Cursor::new(Vec::new()));        
-        assert_matches!(Err(WriteError::Format(WriteErrorKind::UnsupportedBitsPerSample(12))), wave_writer);
+        let wave_writer = WaveWriter::new(1, 44100, 12, Cursor::new(Vec::new()));
+        assert_matches!(Err(WriteError::Format(WriteErrorKind::UnsupportedBitsPerSample(12))),
+                        wave_writer);
     }
 
     #[test]
     fn test_validate_accepts_valid_combination() {
-    	let wave_writer = WaveWriter::new(1, 44100, 16, Cursor::new(Vec::new()));        
+        let wave_writer = WaveWriter::new(1, 44100, 16, Cursor::new(Vec::new()));
         assert_matches!(Ok(_), wave_writer);
     }
 
