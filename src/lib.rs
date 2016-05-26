@@ -157,7 +157,7 @@ mod reader;
 mod writer;
 
 pub use self::reader::{ReadError, ReadErrorKind, ReadResult, WaveReader};
-pub use self::writer::{WaveWriter, WriteError, WriteErrorKind, WriteResult};
+pub use self::writer::{WaveWriter, WriteError, WriteResult};
 
 pub const FORMAT_UNCOMPRESSED_PCM: u16 = 1;
 pub const FORMAT_EXTENDED: u16 = 65534;

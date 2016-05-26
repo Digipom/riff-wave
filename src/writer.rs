@@ -25,9 +25,9 @@ use super::{FORMAT_UNCOMPRESSED_PCM, MAX_I24_VALUE, MIN_I24_VALUE};
 // MARK: Error types
 
 #[derive(Debug)]
-pub enum WriteError {
-    /// The file format is incorrect or unsupported.
-    Format(WriteErrorKind),
+pub enum WriteError {    
+    /// Wave files are limited to 4GB in size.
+    ExceededMaxSize,
     /// An IO error occurred.
     Io(io::Error),
 }
@@ -38,50 +38,23 @@ pub type WriteResult<T> = result::Result<T, WriteError>;
 impl fmt::Display for WriteError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            WriteError::Format(ref err_kind) => write!(f, "Format error: {}", err_kind),
+            WriteError::ExceededMaxSize => write!(f, "Exceeded max size of 4GiB"),
             WriteError::Io(ref err) => write!(f, "IO error: {}", err),
         }
-    }
-}
-
-/// Represents a file format error, when incorrect parameters have been specified.
-#[derive(Debug)]
-pub enum WriteErrorKind {
-    /// The number of channels is zero, which is invalid.
-    NumChannelsIsZero,
-    /// The sample rate is zero, which is invalid.
-    SampleRateIsZero,
-    /// Only 8-bit, 16-bit, 24-bit and 32-bit PCM files are supported.
-    UnsupportedBitsPerSample(u16),
-}
-
-impl WriteErrorKind {
-    fn to_string(&self) -> &str {
-        match *self {            
-            WriteErrorKind::NumChannelsIsZero => "Number of channels is zero",
-            WriteErrorKind::SampleRateIsZero => "Sample rate is zero",
-            WriteErrorKind::UnsupportedBitsPerSample(_) => "Unsupported bits per sample",            
-        }
-    }
-}
-
-impl fmt::Display for WriteErrorKind {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
     }
 }
 
 impl error::Error for WriteError {
     fn description(&self) -> &str {
         match *self {
-            WriteError::Format(ref kind) => kind.to_string(),
+            WriteError::ExceededMaxSize => "exceeded max size",
             WriteError::Io(ref err) => err.description(),
         }
     }
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
-            WriteError::Format(_) => None,
+            WriteError::ExceededMaxSize => None,
             WriteError::Io(ref err) => Some(err),
         }
     }
@@ -211,39 +184,49 @@ impl<T> WaveWriter<T>
     }
 
     /// Writes a single sample as an unsigned 8-bit value.
-    pub fn write_sample_u8(&mut self, sample: u8) -> io::Result<()> {
+    pub fn write_sample_u8(&mut self, sample: u8) -> WriteResult<()> {
         self.write_sample(sample, |writer, sample| writer.write_u8(sample))
     }
 
     /// Writes a single sample as a signed 16-bit value.
-    pub fn write_sample_i16(&mut self, sample: i16) -> io::Result<()> {
+    pub fn write_sample_i16(&mut self, sample: i16) -> WriteResult<()> {
         self.write_sample(sample, |writer, sample| writer.write_i16::<LittleEndian>(sample))
     }
 
     /// Writes a single sample as a signed 24-bit value. The value will be truncated
     /// to fit in a 24-bit value.
-    pub fn write_sample_i24(&mut self, sample: i32) -> io::Result<()> {
+    pub fn write_sample_i24(&mut self, sample: i32) -> WriteResult<()> {
         self.write_sample(sample, |writer, sample| {
             writer.write_int::<LittleEndian>(clamp(sample, MIN_I24_VALUE, MAX_I24_VALUE) as i64, 3)
         })
     }
 
     /// Writes a single sample as a signed 32-bit value.
-    pub fn write_sample_i32(&mut self, sample: i32) -> io::Result<()> {
+    pub fn write_sample_i32(&mut self, sample: i32) -> WriteResult<()> {
         self.write_sample(sample, |writer, sample| writer.write_i32::<LittleEndian>(sample))
     }
 
-    fn write_sample<F, S>(&mut self, sample: S, write_data: F) -> io::Result<()>
+    fn write_sample<F, S>(&mut self, sample: S, write_data: F) -> WriteResult<()>
         where F: Fn(&mut T, S) -> io::Result<()>
     {
+        try!(self.do_overflow_check_for_next_sample());
         try!(write_data(&mut self.writer, sample));
         self.written_samples = self.written_samples + 1;
         Ok(())
     }
 
+    fn do_overflow_check_for_next_sample(&self) -> WriteResult<()> {
+        let data_chunk_size = self.calculate_current_data_size();
+        let riff_chunk_size = 36 + data_chunk_size;
+        let file_size = 8 + riff_chunk_size;
+        let sample_size = self.calculate_sample_size_in_bytes();
+
+        file_size.checked_add(sample_size).map_or(Err(WriteError::ExceededMaxSize), |x| Ok(()))
+    }    
+
     /// Updates the header at the beginning of the file with the new chunk sizes.
     pub fn sync_header(&mut self) -> io::Result<()> {
-        let data_chunk_size = self.written_samples * self.pcm_format.bits_per_sample as u32 / 8;
+        let data_chunk_size = self.calculate_current_data_size();
         let riff_chunk_size = 36 + data_chunk_size;
 
         // File size minus eight bytes
@@ -260,6 +243,14 @@ impl<T> WaveWriter<T>
         Ok(())
     }
 
+    fn calculate_current_data_size(&self) -> u32 {
+        self.written_samples * self.calculate_sample_size_in_bytes()
+    }
+
+    fn calculate_sample_size_in_bytes(&self) -> u32 {
+        self.pcm_format.bits_per_sample as u32 / 8    
+    }
+
     /// Consumes this writer, returning the underlying value.
     pub fn into_inner(self) -> T {
         self.writer
@@ -274,7 +265,7 @@ mod tests {
 
     use super::super::WaveReader;
     use super::super::{MIN_I24_VALUE, MAX_I24_VALUE};
-    use super::{WriteError, WriteErrorKind, WaveWriter};
+    use super::{WriteError, WaveWriter};
     use super::clamp;
 
 
@@ -341,6 +332,58 @@ mod tests {
 
         wave_writer.write_sample_i24(i32::min_value()).unwrap();
         wave_writer.write_sample_i24(i32::max_value()).unwrap();
+    }    
+
+    #[test]
+    fn test_overflow_8bit() {
+        let data = Vec::new();
+        let mut cursor = Cursor::new(data);
+        let mut wave_writer = WaveWriter::new(1, 44100, 8, cursor).unwrap();
+
+        // Make it believe we are close to overflow:
+        wave_writer.written_samples = u32::max_value() - 44;
+
+        // The next write should overflow
+        assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_u8(5));            
+    }
+
+    #[test]
+    fn test_overflow_16bit() {
+        let data = Vec::new();
+        let mut cursor = Cursor::new(data);
+        let mut wave_writer = WaveWriter::new(1, 44100, 16, cursor).unwrap();
+
+        // Make it believe we are close to overflow:
+        wave_writer.written_samples = (u32::max_value() / 2) - 22;
+
+        // The next write should overflow
+        assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_i16(5));            
+    }
+
+    #[test]
+    fn test_overflow_24bit() {
+        let data = Vec::new();
+        let mut cursor = Cursor::new(data);
+        let mut wave_writer = WaveWriter::new(1, 44100, 24, cursor).unwrap();
+
+        // Make it believe we are close to overflow:
+        wave_writer.written_samples = (u32::max_value() / 3) - 15;
+
+        // The next write should overflow
+        assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_i24(5));            
+    }
+
+    #[test]
+    fn test_overflow_32bit() {
+        let data = Vec::new();
+        let mut cursor = Cursor::new(data);
+        let mut wave_writer = WaveWriter::new(1, 44100, 32, cursor).unwrap();
+
+        // Make it believe we are close to overflow:
+        wave_writer.written_samples = (u32::max_value() / 4) - 11;
+
+        // The next write should overflow
+        assert_matches!(Err(WriteError::ExceededMaxSize), wave_writer.write_sample_i32(5));            
     }
 
     #[test]
