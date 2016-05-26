@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["WriteError",""]],"struct":[["WaveWriter","Helper struct that takes ownership of a writer and can be used to write data to a PCM wave file."]],"type":[["WriteResult","Represents a result when reading a wave file."]]});
