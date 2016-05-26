@@ -264,8 +264,9 @@ pub struct WaveReader<T>
     reader: T,
 }
 
-// TODO what should we do if an incorrect read_* method is called? Return the error in the result?
-
+// TODO what should we do if an incorrect read_* method is called? Return the 
+// error in the result? Also, the read methods might need to return optionals
+// instead so we have a better way of flagging EOF.
 impl<T> WaveReader<T>
     where T: Read + Seek
 {

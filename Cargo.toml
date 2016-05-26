@@ -7,6 +7,7 @@ keywords = ["audio", "riff", "sample", "wave", "pcm"]
 license = "Apache-2.0"
 homepage = "https://github.com/Digipom/riff-wave"
 repository = "https://github.com/Digipom/riff-wave"
+readme = "README.md"
 
 [dependencies]
 byteorder = "0.5.1"
