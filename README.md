@@ -14,12 +14,12 @@ use std::io::BufReader;
 use riff_wave::{ReadResult, WaveReader};
 
 fn read_wave() -> ReadResult<()> {
-	let file = try!(File::open("examples/hello.wav"));
+	let file = File::open("examples/hello.wav")?;
 	let reader = BufReader::new(file);
-	let mut wave_reader = try!(WaveReader::new(reader));
+	let mut wave_reader = WaveReader::new(reader)?;
 
 	loop {
-		try!(wave_reader.read_sample_i16());
+		wave_reader.read_sample_i16()?;
 	}	
 }
 ```
@@ -35,12 +35,12 @@ use std::io::BufWriter;
 use riff_wave::{WaveWriter, WriteResult};
 
 fn write_wave() -> WriteResult<()> {		
-	let file = try!(File::create("examples/hello.wav"));
+	let file = File::create("examples/hello.wav")?;
 	let writer = BufWriter::new(file);
-	let mut wave_writer = try!(WaveWriter::new(1, 44100, 16, writer));
+	let mut wave_writer = WaveWriter::new(1, 44100, 16, writer)?;
 
 	for n in 0..10000 {		
-		try!(wave_writer.write_sample_i16(n));
+		wave_writer.write_sample_i16(n)?;
 	}	
 
 	Ok(())
