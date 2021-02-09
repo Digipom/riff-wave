@@ -29,19 +29,27 @@ fn read_wave() -> ReadResult<()> {
 ```rust
 extern crate riff_wave;
 
+use std::f32::consts::PI;
 use std::fs::File;
 use std::io::BufWriter;
 
 use riff_wave::{WaveWriter, WriteResult};
 
 fn write_wave() -> WriteResult<()> {		
+	const SAMPLE_RATE: u32 = 44100;
+	const FREQUENCY: f32 = 2.0 * PI * 440.0; // radian per second
+
 	let file = File::create("examples/hello.wav")?;
 	let writer = BufWriter::new(file);
-	let mut wave_writer = WaveWriter::new(1, 44100, 16, writer)?;
 
-	for n in 0..10000 {		
-		wave_writer.write_sample_i16(n)?;
-	}	
+	let mut wave_writer = WaveWriter::new(1, SAMPLE_RATE, 16, writer)?;
+
+	for n in 0..SAMPLE_RATE {
+		let phase = FREQUENCY * n as f32 / SAMPLE_RATE as f32;
+		let sample = (phase.sin() * 0.8 * i16::MAX as f32) as i16;
+
+		wave_writer.write_sample_i16(sample)?;
+	}
 
 	Ok(())
 }
