@@ -14,6 +14,7 @@ extern crate riff_wave;
 
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
+use std::f32::consts::PI;
 
 use riff_wave::{ReadResult, WaveReader, WaveWriter, WriteResult};
 
@@ -23,23 +24,30 @@ fn main() {
 }
 
 fn write_wave() -> WriteResult<()> {		
-	let file = try!(File::create("examples/hello.wav"));
-	let writer = BufWriter::new(file);
-	let mut wave_writer = try!(WaveWriter::new(1, 44100, 16, writer));
+	const SAMPLE_RATE: u32 = 44100;
+	const FREQUENCY: f32 = 2.0 * PI * 440.0; // radian per second
 
-	for n in 0..10000 {		
-		try!(wave_writer.write_sample_i16(n));
-	}	
+	let file = File::create("examples/hello.wav")?;
+	let writer = BufWriter::new(file);
+
+	let mut wave_writer = WaveWriter::new(1, SAMPLE_RATE, 16, writer)?;
+
+	for n in 0..SAMPLE_RATE {
+		let phase = FREQUENCY * n as f32 / SAMPLE_RATE as f32;
+		let sample = (phase.sin() * 0.8 * i16::MAX as f32) as i16;
+
+		wave_writer.write_sample_i16(sample)?;
+	}
 
 	Ok(())
 }
 
 fn read_wave() -> ReadResult<()> {
-	let file = try!(File::open("examples/hello.wav"));
+	let file = File::open("examples/hello.wav")?;
 	let reader = BufReader::new(file);
-	let mut wave_reader = try!(WaveReader::new(reader));
+	let mut wave_reader = WaveReader::new(reader)?;
 
 	loop {
-		try!(wave_reader.read_sample_i16());
-	}	
-}	
+		wave_reader.read_sample_i16()?;
+	}
+}
