@@ -87,8 +87,8 @@
 //! Offset | Size | Data            | Description
 //! -----: | ---: | --------------- | -----------------------------------------
 //!     38 |    2 | sample info     | For PCM files, this contains the valid bits for sample. For example, if this is set to 20 bits and `bits per sample` is set to 24 bits, then that means that 24 bits are being used to store the sample data, but the actual sample data should not exceed 20 bits of precision.
-//!     42 |    4 | channel mask    | This specifies the assignment of channels to speaker positions.
-//!     46 |   16 | sub format      | For extended wave files, `format` will be set to 0xFFFE to indicate that it's an extended wave file, with the actual format specified here as a [GUID][4]. The first two bytes are the same as specified in `format code`, and the remainder should match 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, and 0x71.
+//!     40 |    4 | channel mask    | This specifies the assignment of channels to speaker positions.
+//!     44 |   16 | sub format      | For extended wave files, `format` will be set to 0xFFFE to indicate that it's an extended wave file, with the actual format specified here as a [GUID][4]. The first two bytes are the same as specified in `format code`, and the remainder should match 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, and 0x71.
 //!
 //! The MSDN docs recommend this format for files with more than two channels
 //! or more than 16 bits per sample, but it's also possible to encounter such
