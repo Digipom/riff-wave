@@ -1,510 +1,116 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="generator" content="rustdoc">
-    <meta name="description" content="API documentation for the Rust `riff_wave` crate.">
-    <meta name="keywords" content="rust, rustlang, rust-lang, riff_wave">
-
-    <title>riff_wave - Rust</title>
-
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
-    <link rel="stylesheet" type="text/css" href="../main.css">
-
-    
-    
-</head>
-<body class="rustdoc">
-    <!--[if lte IE 8]>
-    <div class="warning">
-        This old browser is unsupported and will most likely display funky
-        things.
-    </div>
-    <![endif]-->
-
-    
-
-    <nav class="sidebar">
-        
-        <p class='location'></p><script>window.sidebarCurrent = {name: 'riff_wave', ty: 'mod', relpath: '../'};</script>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Basic support for reading and writing wave PCM files."><meta name="keywords" content="rust, rustlang, rust-lang, riff_wave"><title>riff_wave - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../dark.css" disabled><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../storage.js"></script><script src="../crates.js"></script><script defer src="../main.js"></script>
+    <noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../favicon.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../riff_wave/index.html"><div class="logo-container"><img class="rust-logo" src="../rust-logo.svg" alt="logo"></div>
+        </a><h2 class="location"></h2>
     </nav>
-
-    <nav class="sub">
-        <form class="search-form js-only">
-            <div class="search-container">
-                <input class="search-input" name="search"
-                       autocomplete="off"
-                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
-                       type="search">
-            </div>
-        </form>
-    </nav>
-
-    <section id='main' class="content mod">
-<h1 class='fqn'><span class='in-band'>Crate <a class='mod' href=''>riff_wave</a></span><span class='out-of-band'><span id='render-detail'>
-            <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                [<span class='inner'>&#x2212;</span>]
-            </a>
-        </span><a id='src-0' class='srclink' href='../src/riff_wave/src/lib.rs.html#13-179' title='goto source code'>[src]</a></span></h1>
-<div class='docblock'><p>Basic support for reading and writing wave PCM files.</p>
-
-<p>This early version of the library seeks to support the &quot;canonical&quot; wave PCM
+    <nav class="sidebar"><a class="sidebar-logo" href="../riff_wave/index.html"><div class="logo-container"><img class="rust-logo" src="../rust-logo.svg" alt="logo"></div>
+        </a><h2 class="location"><a href="#">Crate riff_wave</a></h2><div class="sidebar-elems"><div class="block"><ul><li class="version">Version 0.1.3</li><li><a id="all-types" href="all.html">All Items</a></li></div></ul><section><div class="block"><ul><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#constants">Constants</a></li><li><a href="#types">Type Definitions</a></li></ul></div></section><div id="sidebar-vars" data-name="riff_wave" data-ty="mod" data-relpath=""></div><script defer src="sidebar-items.js"></script></div></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../riff_wave/index.html"><img class="rust-logo" src="../rust-logo.svg" alt="logo"></a><nav class="sub"><div class="theme-picker hidden"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="22" height="22" alt="Pick another theme!" src="../brush.svg"></button><div id="theme-choices" role="menu"></div></div><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../wheel.svg"></a></div></form></nav></div><section id="main-content" class="content"><div class="main-heading">
+    <h1 class="fqn"><span class="in-band">Crate <a class="mod" href="#">riff_wave</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span></h1><span class="out-of-band"><a class="srclink" href="../src/riff_wave/lib.rs.html#13-179">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Basic support for reading and writing wave PCM files.</p>
+<p>This early version of the library seeks to support the “canonical” wave PCM
 file format, as well as the basic features of the extended file format.
 Non-PCM files are not currently supported, nor is metadata. Future versions
 of the library may add support for some of these features.</p>
-
 <p>The wave file format was originally defined by Microsoft, and it stores
 audio wave data in a container using RIFF chunks to encode the header and
 data. The RIFF format also supports file metadata via a LIST INFO chunk and
 an associated data chunk.</p>
-
 <p>See also:</p>
-
 <ul>
 <li><a href="https://github.com/ruud-v-a/hound">Hound</a> - Another wave encoding and decoding library in Rust.</li>
 <li><a href="https://www.aelius.com/njh/wavemetatools/doc/riffmci.pdf">Multimedia Programming Interface and Data Specifications 1.0</a> - Further
 info about the RIFF file format.</li>
 <li><a href="http://www.neurophys.wisc.edu/auditory/riff-format.txt">RIFF WAVE (.WAV) file format</a> - Also has more info on the RIFF WAVE format.</li>
 </ul>
-
-<h1 id='the-wave-file-format' class='section-header'><a href='#the-wave-file-format'>The wave file format</a></h1>
+<h2 id="the-wave-file-format"><a href="#the-wave-file-format">The wave file format</a></h2>
 <p>The wave file format starts with the RIFF file header:</p>
-
-<table>
-<thead>
-<tr>
-<th style="text-align: right">Offset</th>
-<th style="text-align: right">Size</th>
-<th>Data</th>
-<th>Description</th>
-</tr>
-</thead>
-
-<tbody>
-<tr>
-<td style="text-align: right">0</td>
-<td style="text-align: right">4</td>
-<td>&quot;RIFF&quot;</td>
-<td>Identifies the main chunk.</td>
-</tr>
-<tr>
-<td style="text-align: right">4</td>
-<td style="text-align: right">4</td>
-<td>chunk size</td>
-<td>The size of the rest of the file. This should be equal to the size of the file minus 8 bytes.</td>
-</tr>
-<tr>
-<td style="text-align: right">8</td>
-<td style="text-align: right">4</td>
-<td>&quot;WAVE&quot;</td>
-<td>Indicates that this is a wave file.</td>
-</tr>
-</tbody>
-</table>
-
+<div><table><thead><tr><th style="text-align: right">Offset</th><th style="text-align: right">Size</th><th>Data</th><th>Description</th></tr></thead><tbody>
+<tr><td style="text-align: right">0</td><td style="text-align: right">4</td><td>“RIFF”</td><td>Identifies the main chunk.</td></tr>
+<tr><td style="text-align: right">4</td><td style="text-align: right">4</td><td>chunk size</td><td>The size of the rest of the file. This should be equal to the size of the file minus 8 bytes.</td></tr>
+<tr><td style="text-align: right">8</td><td style="text-align: right">4</td><td>“WAVE”</td><td>Indicates that this is a wave file.</td></tr>
+</tbody></table>
+</div>
 <p>The wave file format requires at least two subchunks which follow the main chunk:</p>
-
 <ul>
-<li>The &quot;fmt &quot; subchunk. This contains additional header information.</li>
-<li>The &quot;data&quot; subchunk. This contains the actual audio data.</li>
+<li>The “fmt “ subchunk. This contains additional header information.</li>
+<li>The “data” subchunk. This contains the actual audio data.</li>
 </ul>
-
-<h2 id='the-fmt--subchunk' class='section-header'><a href='#the-fmt--subchunk'>The &quot;fmt &quot; subchunk</a></h2>
-<p>The &quot;fmt &quot; subchunk starts with the following fields:</p>
-
-<table>
-<thead>
-<tr>
-<th style="text-align: right">Offset</th>
-<th style="text-align: right">Size</th>
-<th>Data</th>
-<th>Description</th>
-</tr>
-</thead>
-
-<tbody>
-<tr>
-<td style="text-align: right">12</td>
-<td style="text-align: right">4</td>
-<td>&quot;fmt &quot;</td>
-<td>Identifies this subchunk.</td>
-</tr>
-<tr>
-<td style="text-align: right">16</td>
-<td style="text-align: right">4</td>
-<td>subchunk size</td>
-<td>The size of the rest of this subchunk.</td>
-</tr>
-<tr>
-<td style="text-align: right">20</td>
-<td style="text-align: right">2</td>
-<td>format (1)</td>
-<td>The format of the wave data, which will be 1 for uncompressed PCM data.</td>
-</tr>
-<tr>
-<td style="text-align: right">22</td>
-<td style="text-align: right">2</td>
-<td>num channels</td>
-<td>Indicates if the data is mono, stereo, or something else.</td>
-</tr>
-<tr>
-<td style="text-align: right">24</td>
-<td style="text-align: right">4</td>
-<td>sample rate</td>
-<td>The sample rate per second.</td>
-</tr>
-<tr>
-<td style="text-align: right">28</td>
-<td style="text-align: right">4</td>
-<td>byte rate</td>
-<td>The total byte rate per second. For 16-bit stereo at 44,100 samples per second, this would be equal to 176,000 bytes per second.</td>
-</tr>
-<tr>
-<td style="text-align: right">32</td>
-<td style="text-align: right">2</td>
-<td>block align</td>
-<td>How many bytes are needed for each &quot;frame&quot;, where a frame is one sample for each channel.</td>
-</tr>
-<tr>
-<td style="text-align: right">34</td>
-<td style="text-align: right">2</td>
-<td>bits per sample</td>
-<td>The bits per sample; i.e. 16 for 16-bit audio.</td>
-</tr>
-</tbody>
-</table>
-
+<h3 id="the-fmt--subchunk"><a href="#the-fmt--subchunk">The “fmt “ subchunk</a></h3>
+<p>The “fmt “ subchunk starts with the following fields:</p>
+<div><table><thead><tr><th style="text-align: right">Offset</th><th style="text-align: right">Size</th><th>Data</th><th>Description</th></tr></thead><tbody>
+<tr><td style="text-align: right">12</td><td style="text-align: right">4</td><td>“fmt “</td><td>Identifies this subchunk.</td></tr>
+<tr><td style="text-align: right">16</td><td style="text-align: right">4</td><td>subchunk size</td><td>The size of the rest of this subchunk.</td></tr>
+<tr><td style="text-align: right">20</td><td style="text-align: right">2</td><td>format (1)</td><td>The format of the wave data, which will be 1 for uncompressed PCM data.</td></tr>
+<tr><td style="text-align: right">22</td><td style="text-align: right">2</td><td>num channels</td><td>Indicates if the data is mono, stereo, or something else.</td></tr>
+<tr><td style="text-align: right">24</td><td style="text-align: right">4</td><td>sample rate</td><td>The sample rate per second.</td></tr>
+<tr><td style="text-align: right">28</td><td style="text-align: right">4</td><td>byte rate</td><td>The total byte rate per second. For 16-bit stereo at 44,100 samples per second, this would be equal to 176,000 bytes per second.</td></tr>
+<tr><td style="text-align: right">32</td><td style="text-align: right">2</td><td>block align</td><td>How many bytes are needed for each “frame”, where a frame is one sample for each channel.</td></tr>
+<tr><td style="text-align: right">34</td><td style="text-align: right">2</td><td>bits per sample</td><td>The bits per sample; i.e. 16 for 16-bit audio.</td></tr>
+</tbody></table>
+</div>
 <p>The <code>format</code> can take on various values, including the following codes:</p>
-
-<table>
-<thead>
-<tr>
-<th style="text-align: right">Value</th>
-<th>Description</th>
-</tr>
-</thead>
-
-<tbody>
-<tr>
-<td style="text-align: right">1</td>
-<td>Uncompressed PCM</td>
-</tr>
-<tr>
-<td style="text-align: right">3</td>
-<td>IEEE floating-point</td>
-</tr>
-<tr>
-<td style="text-align: right">6</td>
-<td>8-bit ITU-T G.711 A-law</td>
-</tr>
-<tr>
-<td style="text-align: right">7</td>
-<td>8-bit ITU-T G.711 µ-law</td>
-</tr>
-<tr>
-<td style="text-align: right">65534</td>
-<td>A special marker value, indicating that this is an &quot;extended&quot; wave file.</td>
-</tr>
-</tbody>
-</table>
-
+<div><table><thead><tr><th style="text-align: right">Value</th><th>Description</th></tr></thead><tbody>
+<tr><td style="text-align: right">1</td><td>Uncompressed PCM</td></tr>
+<tr><td style="text-align: right">3</td><td>IEEE floating-point</td></tr>
+<tr><td style="text-align: right">6</td><td>8-bit ITU-T G.711 A-law</td></tr>
+<tr><td style="text-align: right">7</td><td>8-bit ITU-T G.711 µ-law</td></tr>
+<tr><td style="text-align: right">65534</td><td>A special marker value, indicating that this is an “extended” wave file.</td></tr>
+</tbody></table>
+</div>
 <p>This library currently only supports uncompressed PCM in standard and
 extended wave formats. These files will usually be either 8-bit unsigned or
 16-bit signed, mono or stereo.</p>
-
 <p>Wave files may include an additional field, usually reserved for non-PCM formats:</p>
-
-<table>
-<thead>
-<tr>
-<th style="text-align: right">Offset</th>
-<th style="text-align: right">Size</th>
-<th>Data</th>
-<th>Description</th>
-</tr>
-</thead>
-
-<tbody>
-<tr>
-<td style="text-align: right">36</td>
-<td style="text-align: right">2</td>
-<td>extra info size</td>
-<td>For non-PCM formats, this stores the size of the additional info that follows the end of the standard header. Otherwise, it is set to 0.</td>
-</tr>
-</tbody>
-</table>
-
-<h3 id='extended-wave-files' class='section-header'><a href='#extended-wave-files'>Extended wave files</a></h3>
+<div><table><thead><tr><th style="text-align: right">Offset</th><th style="text-align: right">Size</th><th>Data</th><th>Description</th></tr></thead><tbody>
+<tr><td style="text-align: right">36</td><td style="text-align: right">2</td><td>extra info size</td><td>For non-PCM formats, this stores the size of the additional info that follows the end of the standard header. Otherwise, it is set to 0.</td></tr>
+</tbody></table>
+</div><h4 id="extended-wave-files"><a href="#extended-wave-files">Extended wave files</a></h4>
 <p>Some wave files may follow the extended format. In this case, the
 <code>extra info size</code> field will be at least 22 instead of 0.</p>
-
-<table>
-<thead>
-<tr>
-<th style="text-align: right">Offset</th>
-<th style="text-align: right">Size</th>
-<th>Data</th>
-<th>Description</th>
-</tr>
-</thead>
-
-<tbody>
-<tr>
-<td style="text-align: right">38</td>
-<td style="text-align: right">2</td>
-<td>sample info</td>
-<td>For PCM files, this contains the valid bits for sample. For example, if this is set to 20 bits and <code>bits per sample</code> is set to 24 bits, then that means that 24 bits are being used to store the sample data, but the actual sample data should not exceed 20 bits of precision.</td>
-</tr>
-<tr>
-<td style="text-align: right">42</td>
-<td style="text-align: right">4</td>
-<td>channel mask</td>
-<td>This specifies the assignment of channels to speaker positions.</td>
-</tr>
-<tr>
-<td style="text-align: right">46</td>
-<td style="text-align: right">16</td>
-<td>sub format</td>
-<td>For extended wave files, <code>format</code> will be set to 0xFFFE to indicate that it&#39;s an extended wave file, with the actual format specified here as a <a href="https://msdn.microsoft.com/en-us/library/windows/desktop/aa373931(v=vs.85).aspx">GUID</a>. The first two bytes are the same as specified in <code>format code</code>, and the remainder should match 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, and 0x71.</td>
-</tr>
-</tbody>
-</table>
-
+<div><table><thead><tr><th style="text-align: right">Offset</th><th style="text-align: right">Size</th><th>Data</th><th>Description</th></tr></thead><tbody>
+<tr><td style="text-align: right">38</td><td style="text-align: right">2</td><td>sample info</td><td>For PCM files, this contains the valid bits for sample. For example, if this is set to 20 bits and <code>bits per sample</code> is set to 24 bits, then that means that 24 bits are being used to store the sample data, but the actual sample data should not exceed 20 bits of precision.</td></tr>
+<tr><td style="text-align: right">40</td><td style="text-align: right">4</td><td>channel mask</td><td>This specifies the assignment of channels to speaker positions.</td></tr>
+<tr><td style="text-align: right">44</td><td style="text-align: right">16</td><td>sub format</td><td>For extended wave files, <code>format</code> will be set to 0xFFFE to indicate that it’s an extended wave file, with the actual format specified here as a <a href="https://msdn.microsoft.com/en-us/library/windows/desktop/aa373931(v=vs.85).aspx">GUID</a>. The first two bytes are the same as specified in <code>format code</code>, and the remainder should match 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, and 0x71.</td></tr>
+</tbody></table>
+</div>
 <p>The MSDN docs recommend this format for files with more than two channels
-or more than 16 bits per sample, but it&#39;s also possible to encounter such
-wave files that don&#39;t include these extra fields. In my testing, Android
+or more than 16 bits per sample, but it’s also possible to encounter such
+wave files that don’t include these extra fields. In my testing, Android
 Marshmallow was able to play back 24-bit PCM wave files using both the
 standard format and the extensible format, generated using <a href="http://www.audacityteam.org">Audacity</a>.</p>
-
-<h2 id='the-data-subchunk' class='section-header'><a href='#the-data-subchunk'>The &quot;data&quot; subchunk</a></h2>
-<p>The &quot;data&quot; subchunk contains the actual audio data:</p>
-
-<table>
-<thead>
-<tr>
-<th style="text-align: right">Offset</th>
-<th style="text-align: right">Size</th>
-<th>Data</th>
-<th>Description</th>
-</tr>
-</thead>
-
-<tbody>
-<tr>
-<td style="text-align: right">36+</td>
-<td style="text-align: right">4</td>
-<td>&quot;data&quot;</td>
-<td>Identifies this subchunk</td>
-</tr>
-<tr>
-<td style="text-align: right">40+</td>
-<td style="text-align: right">4</td>
-<td>subchunk size</td>
-<td>The size of this chunk. For the simple &quot;canonical&quot; wave file format, this will generally be the size of the file minus 44 bytes for the header data, up to and including this field.</td>
-</tr>
-<tr>
-<td style="text-align: right">44+</td>
-<td style="text-align: right">...</td>
-<td>audio data</td>
-<td>This stores the actual audio data.</td>
-</tr>
-<tr>
-<td style="text-align: right">...</td>
-<td style="text-align: right">...</td>
-<td>padding byte</td>
-<td>If the length of audio data is an odd number, then an additional padding byte should be inserted.</td>
-</tr>
-</tbody>
-</table>
-
+<h3 id="the-data-subchunk"><a href="#the-data-subchunk">The “data” subchunk</a></h3>
+<p>The “data” subchunk contains the actual audio data:</p>
+<div><table><thead><tr><th style="text-align: right">Offset</th><th style="text-align: right">Size</th><th>Data</th><th>Description</th></tr></thead><tbody>
+<tr><td style="text-align: right">36+</td><td style="text-align: right">4</td><td>“data”</td><td>Identifies this subchunk</td></tr>
+<tr><td style="text-align: right">40+</td><td style="text-align: right">4</td><td>subchunk size</td><td>The size of this chunk. For the simple “canonical” wave file format, this will generally be the size of the file minus 44 bytes for the header data, up to and including this field.</td></tr>
+<tr><td style="text-align: right">44+</td><td style="text-align: right">…</td><td>audio data</td><td>This stores the actual audio data.</td></tr>
+<tr><td style="text-align: right">…</td><td style="text-align: right">…</td><td>padding byte</td><td>If the length of audio data is an odd number, then an additional padding byte should be inserted.</td></tr>
+</tbody></table>
+</div>
 <p>As the subchunk size is a 32-bit value, the length of audio data cannot
-exceed 4 GiB, and indeed the entire file can&#39;t really exceed 4 GiB as the
+exceed 4 GiB, and indeed the entire file can’t really exceed 4 GiB as the
 master RIFF chunk size field is also a 32-bit value.</p>
-
-<h2 id='additional-meta-data' class='section-header'><a href='#additional-meta-data'>Additional meta-data</a></h2>
+<h3 id="additional-meta-data"><a href="#additional-meta-data">Additional meta-data</a></h3>
 <p>Wave files may also contain other metadata, such as the LIST INFO chunks
 defined by RIFF or other metadata. The LIST INFO chunk is analogous to
-the ID3 tag in an MP3 file, and if it&#39;s present, it can often be found
-between the &quot;fmt &quot; and &quot;data&quot; subchunks or after the end of the &quot;data&quot;
+the ID3 tag in an MP3 file, and if it’s present, it can often be found
+between the “fmt “ and “data” subchunks or after the end of the “data”
 subchunk.</p>
-
 <p>See also:</p>
-
 <ul>
 <li><a href="https://msdn.microsoft.com/en-us/library/windows/desktop/dd757714(v=vs.85).aspx">WAVEFORMATEXTENSIBLE structure</a></li>
 <li><a href="http://www-mmsp.ece.mcgill.ca/documents/audioformats/wave/wave.html">Audio File Format Specifications</a></li>
 <li><a href="http://soundfile.sapp.org/doc/WaveFormat/">WAVE PCM soundfile format</a></li>
 </ul>
-</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
-<table>
-                    <tr class=' module-item'>
-                        <td><a class='struct' href='struct.PcmFormat.html'
-                               title='riff_wave::PcmFormat'>PcmFormat</a></td>
-                        <td class='docblock short'>
-                             
-                        </td>
-                    </tr>
-                
-                    <tr class=' module-item'>
-                        <td><a class='struct' href='struct.WaveReader.html'
-                               title='riff_wave::WaveReader'>WaveReader</a></td>
-                        <td class='docblock short'>
-                             <p>Helper struct that takes ownership of a reader and can be used to read data
+</div></details><h2 id="structs" class="small-section-header"><a href="#structs">Structs</a></h2>
+<div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.PcmFormat.html" title="riff_wave::PcmFormat struct">PcmFormat</a></div><div class="item-right docblock-short"></div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.WaveReader.html" title="riff_wave::WaveReader struct">WaveReader</a></div><div class="item-right docblock-short"><p>Helper struct that takes ownership of a reader and can be used to read data
 from a PCM wave file.</p>
-                        </td>
-                    </tr>
-                
-                    <tr class=' module-item'>
-                        <td><a class='struct' href='struct.WaveWriter.html'
-                               title='riff_wave::WaveWriter'>WaveWriter</a></td>
-                        <td class='docblock short'>
-                             <p>Helper struct that takes ownership of a writer and can be used to write data
+</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.WaveWriter.html" title="riff_wave::WaveWriter struct">WaveWriter</a></div><div class="item-right docblock-short"><p>Helper struct that takes ownership of a writer and can be used to write data
 to a PCM wave file.</p>
-                        </td>
-                    </tr>
-                </table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
-<table>
-                    <tr class=' module-item'>
-                        <td><a class='enum' href='enum.Format.html'
-                               title='riff_wave::Format'>Format</a></td>
-                        <td class='docblock short'>
-                             
-                        </td>
-                    </tr>
-                
-                    <tr class=' module-item'>
-                        <td><a class='enum' href='enum.ReadError.html'
-                               title='riff_wave::ReadError'>ReadError</a></td>
-                        <td class='docblock short'>
-                             <p>Represents an error that occurred while reading a wave file.</p>
-                        </td>
-                    </tr>
-                
-                    <tr class=' module-item'>
-                        <td><a class='enum' href='enum.ReadErrorKind.html'
-                               title='riff_wave::ReadErrorKind'>ReadErrorKind</a></td>
-                        <td class='docblock short'>
-                             <p>Represents a file format error, when the wave file is incorrect or unsupported.</p>
-                        </td>
-                    </tr>
-                
-                    <tr class=' module-item'>
-                        <td><a class='enum' href='enum.WriteError.html'
-                               title='riff_wave::WriteError'>WriteError</a></td>
-                        <td class='docblock short'>
-                             
-                        </td>
-                    </tr>
-                </table><h2 id='constants' class='section-header'><a href="#constants">Constants</a></h2>
-<table>
-                    <tr class=' module-item'>
-                        <td><a class='constant' href='constant.FORMAT_EXTENDED.html'
-                               title='riff_wave::FORMAT_EXTENDED'>FORMAT_EXTENDED</a></td>
-                        <td class='docblock short'>
-                             
-                        </td>
-                    </tr>
-                
-                    <tr class=' module-item'>
-                        <td><a class='constant' href='constant.FORMAT_UNCOMPRESSED_PCM.html'
-                               title='riff_wave::FORMAT_UNCOMPRESSED_PCM'>FORMAT_UNCOMPRESSED_PCM</a></td>
-                        <td class='docblock short'>
-                             
-                        </td>
-                    </tr>
-                
-                    <tr class=' module-item'>
-                        <td><a class='constant' href='constant.MAX_I24_VALUE.html'
-                               title='riff_wave::MAX_I24_VALUE'>MAX_I24_VALUE</a></td>
-                        <td class='docblock short'>
-                             
-                        </td>
-                    </tr>
-                
-                    <tr class=' module-item'>
-                        <td><a class='constant' href='constant.MIN_I24_VALUE.html'
-                               title='riff_wave::MIN_I24_VALUE'>MIN_I24_VALUE</a></td>
-                        <td class='docblock short'>
-                             
-                        </td>
-                    </tr>
-                </table><h2 id='types' class='section-header'><a href="#types">Type Definitions</a></h2>
-<table>
-                    <tr class=' module-item'>
-                        <td><a class='type' href='type.ReadResult.html'
-                               title='riff_wave::ReadResult'>ReadResult</a></td>
-                        <td class='docblock short'>
-                             <p>Represents a result when reading a wave file.</p>
-                        </td>
-                    </tr>
-                
-                    <tr class=' module-item'>
-                        <td><a class='type' href='type.WriteResult.html'
-                               title='riff_wave::WriteResult'>WriteResult</a></td>
-                        <td class='docblock short'>
-                             <p>Represents a result when reading a wave file.</p>
-                        </td>
-                    </tr>
-                </table></section>
-    <section id='search' class="content hidden"></section>
-
-    <section class="footer"></section>
-
-    <aside id="help" class="hidden">
-        <div>
-            <h1 class="hidden">Help</h1>
-
-            <div class="shortcuts">
-                <h2>Keyboard Shortcuts</h2>
-
-                <dl>
-                    <dt>?</dt>
-                    <dd>Show this help dialog</dd>
-                    <dt>S</dt>
-                    <dd>Focus the search field</dd>
-                    <dt>&larrb;</dt>
-                    <dd>Move up in search results</dd>
-                    <dt>&rarrb;</dt>
-                    <dd>Move down in search results</dd>
-                    <dt>&#9166;</dt>
-                    <dd>Go to active search result</dd>
-                </dl>
-            </div>
-
-            <div class="infos">
-                <h2>Search Tricks</h2>
-
-                <p>
-                    Prefix searches with a type followed by a colon (e.g.
-                    <code>fn:</code>) to restrict the search to a given type.
-                </p>
-
-                <p>
-                    Accepted types are: <code>fn</code>, <code>mod</code>,
-                    <code>struct</code>, <code>enum</code>,
-                    <code>trait</code>, <code>type</code>, <code>macro</code>,
-                    and <code>const</code>.
-                </p>
-
-                <p>
-                    Search functions by type signature (e.g.
-                    <code>vec -> usize</code> or <code>* -> vec</code>)
-                </p>
-            </div>
-        </div>
-    </aside>
-
-    
-
-    <script>
-        window.rootPath = "../";
-        window.currentCrate = "riff_wave";
-        window.playgroundUrl = "";
-    </script>
-    <script src="../jquery.js"></script>
-    <script src="../main.js"></script>
-    
-    <script defer src="../search-index.js"></script>
-</body>
-</html>
+</div></div></div><h2 id="enums" class="small-section-header"><a href="#enums">Enums</a></h2>
+<div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.Format.html" title="riff_wave::Format enum">Format</a></div><div class="item-right docblock-short"></div></div><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.ReadError.html" title="riff_wave::ReadError enum">ReadError</a></div><div class="item-right docblock-short"><p>Represents an error that occurred while reading a wave file.</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.ReadErrorKind.html" title="riff_wave::ReadErrorKind enum">ReadErrorKind</a></div><div class="item-right docblock-short"><p>Represents a file format error, when the wave file is incorrect or unsupported.</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.WriteError.html" title="riff_wave::WriteError enum">WriteError</a></div><div class="item-right docblock-short"></div></div></div><h2 id="constants" class="small-section-header"><a href="#constants">Constants</a></h2>
+<div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.FORMAT_EXTENDED.html" title="riff_wave::FORMAT_EXTENDED constant">FORMAT_EXTENDED</a></div><div class="item-right docblock-short"></div></div><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.FORMAT_UNCOMPRESSED_PCM.html" title="riff_wave::FORMAT_UNCOMPRESSED_PCM constant">FORMAT_UNCOMPRESSED_PCM</a></div><div class="item-right docblock-short"></div></div><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.MAX_I24_VALUE.html" title="riff_wave::MAX_I24_VALUE constant">MAX_I24_VALUE</a></div><div class="item-right docblock-short"></div></div><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.MIN_I24_VALUE.html" title="riff_wave::MIN_I24_VALUE constant">MIN_I24_VALUE</a></div><div class="item-right docblock-short"></div></div></div><h2 id="types" class="small-section-header"><a href="#types">Type Definitions</a></h2>
+<div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="type" href="type.ReadResult.html" title="riff_wave::ReadResult type">ReadResult</a></div><div class="item-right docblock-short"><p>Represents a result when reading a wave file.</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="type" href="type.WriteResult.html" title="riff_wave::WriteResult type">WriteResult</a></div><div class="item-right docblock-short"><p>Represents a result when reading a wave file.</p>
+</div></div></div></section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../" data-current-crate="riff_wave" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.61.0 (fe5b13d68 2022-05-18)" ></div>
+</body></html>

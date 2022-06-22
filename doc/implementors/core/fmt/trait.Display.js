@@ -1,10 +1,3 @@
 (function() {var implementors = {};
-implementors['riff_wave'] = ["impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html' title='core::fmt::Display'>Display</a> for <a class='enum' href='riff_wave/enum.ReadError.html' title='riff_wave::ReadError'>ReadError</a>","impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html' title='core::fmt::Display'>Display</a> for <a class='enum' href='riff_wave/enum.ReadErrorKind.html' title='riff_wave::ReadErrorKind'>ReadErrorKind</a>","impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html' title='core::fmt::Display'>Display</a> for <a class='enum' href='riff_wave/enum.WriteError.html' title='riff_wave::WriteError'>WriteError</a>",];
-
-            if (window.register_implementors) {
-                window.register_implementors(implementors);
-            } else {
-                window.pending_implementors = implementors;
-            }
-        
-})()
+implementors["riff_wave"] = [{"text":"impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.61.0/core/fmt/trait.Display.html\" title=\"trait core::fmt::Display\">Display</a> for <a class=\"enum\" href=\"riff_wave/enum.ReadErrorKind.html\" title=\"enum riff_wave::ReadErrorKind\">ReadErrorKind</a>","synthetic":false,"types":["riff_wave::reader::ReadErrorKind"]},{"text":"impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.61.0/core/fmt/trait.Display.html\" title=\"trait core::fmt::Display\">Display</a> for <a class=\"enum\" href=\"riff_wave/enum.ReadError.html\" title=\"enum riff_wave::ReadError\">ReadError</a>","synthetic":false,"types":["riff_wave::reader::ReadError"]},{"text":"impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.61.0/core/fmt/trait.Display.html\" title=\"trait core::fmt::Display\">Display</a> for <a class=\"enum\" href=\"riff_wave/enum.WriteError.html\" title=\"enum riff_wave::WriteError\">WriteError</a>","synthetic":false,"types":["riff_wave::writer::WriteError"]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

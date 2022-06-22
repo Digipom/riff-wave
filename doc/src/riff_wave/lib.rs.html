@@ -1,0 +1,366 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script src="../../crates.js"></script><script defer src="../../main.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script>
+    <noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../riff_wave/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
+        </a><h2 class="location"></h2>
+    </nav>
+    <nav class="sidebar"><a class="sidebar-logo" href="../../riff_wave/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
+        </a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../riff_wave/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><div class="theme-picker hidden"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="22" height="22" alt="Pick another theme!" src="../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<span id="2">2</span>
+<span id="3">3</span>
+<span id="4">4</span>
+<span id="5">5</span>
+<span id="6">6</span>
+<span id="7">7</span>
+<span id="8">8</span>
+<span id="9">9</span>
+<span id="10">10</span>
+<span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
+<span id="79">79</span>
+<span id="80">80</span>
+<span id="81">81</span>
+<span id="82">82</span>
+<span id="83">83</span>
+<span id="84">84</span>
+<span id="85">85</span>
+<span id="86">86</span>
+<span id="87">87</span>
+<span id="88">88</span>
+<span id="89">89</span>
+<span id="90">90</span>
+<span id="91">91</span>
+<span id="92">92</span>
+<span id="93">93</span>
+<span id="94">94</span>
+<span id="95">95</span>
+<span id="96">96</span>
+<span id="97">97</span>
+<span id="98">98</span>
+<span id="99">99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+</pre><pre class="rust"><code><span class="comment">// riff-wave -- Basic support for reading and writing wave PCM files.</span>
+<span class="comment">// Copyright (c) 2016 Kevin Brothaler and the riff-wave project authors.</span>
+<span class="comment">//</span>
+<span class="comment">// Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);</span>
+<span class="comment">// you may not use this file except in compliance with the License.</span>
+<span class="comment">// A copy of the License has been included in the root of the repository.</span>
+<span class="comment">// Unless required by applicable law or agreed to in writing, software</span>
+<span class="comment">// distributed under the License is distributed on an &quot;AS IS&quot; BASIS,</span>
+<span class="comment">// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.</span>
+<span class="comment">// See the License for the specific language governing permissions and</span>
+<span class="comment">// limitations under the License.</span>
+
+<span class="doccomment">//! Basic support for reading and writing wave PCM files.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! This early version of the library seeks to support the &quot;canonical&quot; wave PCM</span>
+<span class="doccomment">//! file format, as well as the basic features of the extended file format.</span>
+<span class="doccomment">//! Non-PCM files are not currently supported, nor is metadata. Future versions</span>
+<span class="doccomment">//! of the library may add support for some of these features.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The wave file format was originally defined by Microsoft, and it stores</span>
+<span class="doccomment">//! audio wave data in a container using RIFF chunks to encode the header and</span>
+<span class="doccomment">//! data. The RIFF format also supports file metadata via a LIST INFO chunk and</span>
+<span class="doccomment">//! an associated data chunk.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! See also:</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! * [Hound][1] - Another wave encoding and decoding library in Rust.</span>
+<span class="doccomment">//! * [Multimedia Programming Interface and Data Specifications 1.0][2] - Further</span>
+<span class="doccomment">//! info about the RIFF file format.</span>
+<span class="doccomment">//! * [RIFF WAVE (.WAV) file format][3] - Also has more info on the RIFF WAVE format.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! # The wave file format</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The wave file format starts with the RIFF file header:</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Offset | Size | Data       |    Description</span>
+<span class="doccomment">//! -----: | ---: | ---------- | ----------------------------------------------</span>
+<span class="doccomment">//!      0 |    4 | &quot;RIFF&quot;     | Identifies the main chunk.</span>
+<span class="doccomment">//!      4 |    4 | chunk size | The size of the rest of the file. This should be equal to the size of the file minus 8 bytes.</span>
+<span class="doccomment">//!      8 |    4 | &quot;WAVE&quot;     | Indicates that this is a wave file.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The wave file format requires at least two subchunks which follow the main chunk:</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! * The &quot;fmt &quot; subchunk. This contains additional header information.</span>
+<span class="doccomment">//! * The &quot;data&quot; subchunk. This contains the actual audio data.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! ## The &quot;fmt &quot; subchunk</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The &quot;fmt &quot; subchunk starts with the following fields:</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Offset | Size | Data            | Description</span>
+<span class="doccomment">//! -----: | ---: | --------------- | -----------------------------------------</span>
+<span class="doccomment">//!     12 |    4 | &quot;fmt &quot;          | Identifies this subchunk.</span>
+<span class="doccomment">//!     16 |    4 | subchunk size   | The size of the rest of this subchunk.</span>
+<span class="doccomment">//!     20 |    2 | format (1)      | The format of the wave data, which will be 1 for uncompressed PCM data.</span>
+<span class="doccomment">//!     22 |    2 | num channels    | Indicates if the data is mono, stereo, or something else.</span>
+<span class="doccomment">//!     24 |    4 | sample rate     | The sample rate per second.</span>
+<span class="doccomment">//!     28 |    4 | byte rate       | The total byte rate per second. For 16-bit stereo at 44,100 samples per second, this would be equal to 176,000 bytes per second.</span>
+<span class="doccomment">//!     32 |    2 | block align     | How many bytes are needed for each &quot;frame&quot;, where a frame is one sample for each channel.</span>
+<span class="doccomment">//!     34 |    2 | bits per sample | The bits per sample; i.e. 16 for 16-bit audio.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The `format` can take on various values, including the following codes:</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Value | Description</span>
+<span class="doccomment">//! ----: | -------------------------------------------------------------------</span>
+<span class="doccomment">//!     1 | Uncompressed PCM</span>
+<span class="doccomment">//!     3 | IEEE floating-point</span>
+<span class="doccomment">//!     6 | 8-bit ITU-T G.711 A-law</span>
+<span class="doccomment">//!     7 | 8-bit ITU-T G.711 µ-law</span>
+<span class="doccomment">//! 65534 | A special marker value, indicating that this is an &quot;extended&quot; wave file.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! This library currently only supports uncompressed PCM in standard and</span>
+<span class="doccomment">//! extended wave formats. These files will usually be either 8-bit unsigned or</span>
+<span class="doccomment">//! 16-bit signed, mono or stereo.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Wave files may include an additional field, usually reserved for non-PCM formats:</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Offset | Size | Data            | Description</span>
+<span class="doccomment">//! -----: | ---: | --------------- | -----------------------------------------</span>
+<span class="doccomment">//!     36 |    2 | extra info size | For non-PCM formats, this stores the size of the additional info that follows the end of the standard header. Otherwise, it is set to 0.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! ### Extended wave files</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Some wave files may follow the extended format. In this case, the</span>
+<span class="doccomment">//! `extra info size` field will be at least 22 instead of 0.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Offset | Size | Data            | Description</span>
+<span class="doccomment">//! -----: | ---: | --------------- | -----------------------------------------</span>
+<span class="doccomment">//!     38 |    2 | sample info     | For PCM files, this contains the valid bits for sample. For example, if this is set to 20 bits and `bits per sample` is set to 24 bits, then that means that 24 bits are being used to store the sample data, but the actual sample data should not exceed 20 bits of precision.</span>
+<span class="doccomment">//!     40 |    4 | channel mask    | This specifies the assignment of channels to speaker positions.</span>
+<span class="doccomment">//!     44 |   16 | sub format      | For extended wave files, `format` will be set to 0xFFFE to indicate that it&#39;s an extended wave file, with the actual format specified here as a [GUID][4]. The first two bytes are the same as specified in `format code`, and the remainder should match 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, and 0x71.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The MSDN docs recommend this format for files with more than two channels</span>
+<span class="doccomment">//! or more than 16 bits per sample, but it&#39;s also possible to encounter such</span>
+<span class="doccomment">//! wave files that don&#39;t include these extra fields. In my testing, Android</span>
+<span class="doccomment">//! Marshmallow was able to play back 24-bit PCM wave files using both the</span>
+<span class="doccomment">//! standard format and the extensible format, generated using [Audacity][5].</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! ## The &quot;data&quot; subchunk</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! The &quot;data&quot; subchunk contains the actual audio data:</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Offset | Size | Data            | Description</span>
+<span class="doccomment">//! -----: | ---: | --------------- | -----------------------------------------</span>
+<span class="doccomment">//! 36+    |    4 | &quot;data&quot;          | Identifies this subchunk</span>
+<span class="doccomment">//! 40+    |    4 | subchunk size   | The size of this chunk. For the simple &quot;canonical&quot; wave file format, this will generally be the size of the file minus 44 bytes for the header data, up to and including this field.</span>
+<span class="doccomment">//! 44+    |  ... | audio data      | This stores the actual audio data.</span>
+<span class="doccomment">//! ...    |  ... | padding byte    | If the length of audio data is an odd number, then an additional padding byte should be inserted.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! As the subchunk size is a 32-bit value, the length of audio data cannot</span>
+<span class="doccomment">//! exceed 4 GiB, and indeed the entire file can&#39;t really exceed 4 GiB as the</span>
+<span class="doccomment">//! master RIFF chunk size field is also a 32-bit value.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! ## Additional meta-data</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Wave files may also contain other metadata, such as the LIST INFO chunks</span>
+<span class="doccomment">//! defined by RIFF or other metadata. The LIST INFO chunk is analogous to</span>
+<span class="doccomment">//! the ID3 tag in an MP3 file, and if it&#39;s present, it can often be found</span>
+<span class="doccomment">//! between the &quot;fmt &quot; and &quot;data&quot; subchunks or after the end of the &quot;data&quot;</span>
+<span class="doccomment">//! subchunk.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! See also:</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! * [WAVEFORMATEXTENSIBLE structure][6]</span>
+<span class="doccomment">//! * [Audio File Format Specifications][7]</span>
+<span class="doccomment">//! * [WAVE PCM soundfile format][8]</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! [1]: https://github.com/ruud-v-a/hound</span>
+<span class="doccomment">//! [2]: https://www.aelius.com/njh/wavemetatools/doc/riffmci.pdf</span>
+<span class="doccomment">//! [3]: http://www.neurophys.wisc.edu/auditory/riff-format.txt</span>
+<span class="doccomment">//! [4]: https://msdn.microsoft.com/en-us/library/windows/desktop/aa373931(v=vs.85).aspx</span>
+<span class="doccomment">//! [5]: http://www.audacityteam.org</span>
+<span class="doccomment">//! [6]: https://msdn.microsoft.com/en-us/library/windows/desktop/dd757714(v=vs.85).aspx</span>
+<span class="doccomment">//! [7]: http://www-mmsp.ece.mcgill.ca/documents/audioformats/wave/wave.html</span>
+<span class="doccomment">//! [8]: http://soundfile.sapp.org/doc/WaveFormat/</span>
+
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">byteorder</span>;
+
+<span class="comment">// This is a helper macro that helps us validate results in our tests. It has</span>
+<span class="comment">// to be defined before the mod definitions below so that it&#39;s visible in those</span>
+<span class="comment">// mods.</span>
+<span class="comment">// Thank you bluss and durka42!</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="macro">macro_rules!</span> <span class="ident">assert_matches</span> {
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">expected</span>:<span class="ident">pat</span> $(<span class="kw">if</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">guard</span>:<span class="ident">expr</span>)<span class="kw-2">*</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span>:<span class="ident">expr</span>) =&gt; {
+        <span class="kw">match</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">value</span> {
+            <span class="macro-nonterminal">$</span><span class="macro-nonterminal">expected</span> $(<span class="kw">if</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">guard</span>)<span class="op">*</span> =&gt; {},
+            <span class="kw-2">ref</span> <span class="ident">actual</span> =&gt; {
+                <span class="macro">panic!</span>(<span class="string">&quot;assertion failed: `(left matches right)` (left: `{}`, right: `{:?}`&quot;</span>,
+                    <span class="macro">stringify!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">expected</span>), <span class="ident">actual</span>);
+            },
+        }
+    };
+}
+
+<span class="kw">mod</span> <span class="ident">reader</span>;
+<span class="kw">mod</span> <span class="ident">writer</span>;
+
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::reader</span>::{<span class="ident">ReadError</span>, <span class="ident">ReadErrorKind</span>, <span class="ident">ReadResult</span>, <span class="ident">WaveReader</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="self">self</span>::writer</span>::{<span class="ident">WaveWriter</span>, <span class="ident">WriteError</span>, <span class="ident">WriteResult</span>};
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FORMAT_UNCOMPRESSED_PCM</span>: <span class="ident">u16</span> <span class="op">=</span> <span class="number">1</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FORMAT_EXTENDED</span>: <span class="ident">u16</span> <span class="op">=</span> <span class="number">65534</span>;
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">MIN_I24_VALUE</span>: <span class="ident">i32</span> <span class="op">=</span> <span class="op">-</span><span class="number">8388608</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">MAX_I24_VALUE</span>: <span class="ident">i32</span> <span class="op">=</span> <span class="number">8388607</span>;
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Format</span> {
+    <span class="ident">UncompressedPcm</span>,
+    <span class="ident">Extended</span>,
+}
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PcmFormat</span> {
+    <span class="kw">pub</span> <span class="ident">num_channels</span>: <span class="ident">u16</span>,
+    <span class="kw">pub</span> <span class="ident">sample_rate</span>: <span class="ident">u32</span>,
+    <span class="kw">pub</span> <span class="ident">bits_per_sample</span>: <span class="ident">u16</span>,
+}
+</code></pre></div>
+</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="riff_wave" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.61.0 (fe5b13d68 2022-05-18)" ></div>
+</body></html>
