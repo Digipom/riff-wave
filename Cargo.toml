@@ -1,6 +1,6 @@
 [package]
 name = "riff-wave"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Kevin Brothaler <contact@digipom.com>"]
 description = "Simple methods for reading and writing PCM wave files."
 keywords = ["audio", "riff", "sample", "wave", "pcm"]
