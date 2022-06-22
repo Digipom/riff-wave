@@ -70,17 +70,17 @@ impl From<io::Error> for WriteError {
 
 trait WriteWaveExt: Write + Seek {
     fn write_standard_wave_header(&mut self, pcm_format: &PcmFormat) -> io::Result<()> {
-        try!(self.write_riff_wave_chunk_header());
-        try!(self.write_standard_fmt_subchunk(pcm_format));
-        try!(self.write_data_subchunk_header());
+        self.write_riff_wave_chunk_header()?;
+        self.write_standard_fmt_subchunk(pcm_format)?;
+        self.write_data_subchunk_header()?;
 
         Ok(())
     }
 
     fn write_riff_wave_chunk_header(&mut self) -> io::Result<()> {
-        try!(self.write_all(b"RIFF"));                      // Identifier
-        try!(self.write_u32_l(36));                         // File size (header) minus eight bytes
-        try!(self.write_all(b"WAVE"));                      // Identifier
+        self.write_all(b"RIFF")?;                           // Identifier
+        self.write_u32_l(36)?;                              // File size (header) minus eight bytes
+        self.write_all(b"WAVE")?;                           // Identifier
 
         Ok(())
     }
@@ -99,26 +99,26 @@ trait WriteWaveExt: Write + Seek {
             panic!("The bits per sample needs to be either 8, 16, 24, or 32.");            
         }
 
-        try!(self.write_all(b"fmt "));                      // "fmt " chunk and size
-        try!(self.write_u32_l(16));                         // Subchunk size
-        try!(self.write_u16_l(FORMAT_UNCOMPRESSED_PCM));    // PCM Format
-        try!(self.write_u16_l(num_channels));               // Number of channels
-        try!(self.write_u32_l(sample_rate));                // Sample rate
+        self.write_all(b"fmt ")?;                           // "fmt " chunk and size
+        self.write_u32_l(16)?;                              // Subchunk size
+        self.write_u16_l(FORMAT_UNCOMPRESSED_PCM)?;         // PCM Format
+        self.write_u16_l(num_channels)?;                    // Number of channels
+        self.write_u32_l(sample_rate)?;                     // Sample rate
 
         let bytes_per_sample = bits_per_sample / 8;
         let block_align = num_channels * bytes_per_sample;
         let byte_rate = block_align as u32 * sample_rate;
 
-        try!(self.write_u32_l(byte_rate));                  // Byte rate
-        try!(self.write_u16_l(block_align));                // Block align
-        try!(self.write_u16_l(bits_per_sample));            // Bits per sample
+        self.write_u32_l(byte_rate)?;                       // Byte rate
+        self.write_u16_l(block_align)?;                     // Block align
+        self.write_u16_l(bits_per_sample)?;                 // Bits per sample
 
         Ok(())
     }
 
     fn write_data_subchunk_header(&mut self) -> io::Result<()> {
-        try!(self.write_all(b"data"));                      // Start of "data" subchunk
-        try!(self.write_u32_l(0));                          // Size of data subchunk.
+        self.write_all(b"data")?;                           // Start of "data" subchunk
+        self.write_u32_l(0)?;                               // Size of data subchunk.
 
         Ok(())
     }
@@ -138,7 +138,8 @@ impl<T> WriteWaveExt for T where T: Seek + Write {}
 /// to a PCM wave file.
 #[derive(Debug)]
 pub struct WaveWriter<T>
-    where T: Seek + Write
+where
+    T: Seek + Write,
 {
     ///  Represents the PCM format for this wave file.
     pub pcm_format: PcmFormat,
@@ -152,24 +153,26 @@ pub struct WaveWriter<T>
 
 // TODO what should we do if an incorrect write_* method is called? Return the error in the result?
 impl<T> WaveWriter<T>
-    where T: Seek + Write
+where
+    T: Seek + Write,
 {
     /// Returns a new wave writer for the given writer.
     /// # Panics
     /// Panics if num_channels or sample_rate is zero, or if bits_per_sample
     /// doesn't match 8, 16, 24, or 32.
-    pub fn new(num_channels: u16,
-               sample_rate: u32,
-               bits_per_sample: u16,
-               mut writer: T)
-               -> WriteResult<WaveWriter<T>> {
+    pub fn new(
+        num_channels: u16,
+        sample_rate: u32,
+        bits_per_sample: u16,
+        mut writer: T,
+    ) -> WriteResult<WaveWriter<T>> {
         let pcm_format = PcmFormat {
             num_channels: num_channels,
             sample_rate: sample_rate,
             bits_per_sample: bits_per_sample,
         };
 
-        try!(writer.write_standard_wave_header(&pcm_format));
+        writer.write_standard_wave_header(&pcm_format)?;
 
         Ok(WaveWriter {
             pcm_format: pcm_format,
@@ -185,7 +188,9 @@ impl<T> WaveWriter<T>
 
     /// Writes a single sample as a signed 16-bit value.
     pub fn write_sample_i16(&mut self, sample: i16) -> WriteResult<()> {
-        self.write_sample(sample, |writer, sample| writer.write_i16::<LittleEndian>(sample))
+        self.write_sample(sample, |writer, sample| {
+            writer.write_i16::<LittleEndian>(sample)
+        })
     }
 
     /// Writes a single sample as a signed 24-bit value. The value will be truncated
@@ -198,14 +203,17 @@ impl<T> WaveWriter<T>
 
     /// Writes a single sample as a signed 32-bit value.
     pub fn write_sample_i32(&mut self, sample: i32) -> WriteResult<()> {
-        self.write_sample(sample, |writer, sample| writer.write_i32::<LittleEndian>(sample))
+        self.write_sample(sample, |writer, sample| {
+            writer.write_i32::<LittleEndian>(sample)
+        })
     }
 
     fn write_sample<F, S>(&mut self, sample: S, write_data: F) -> WriteResult<()>
-        where F: Fn(&mut T, S) -> io::Result<()>
+    where
+        F: Fn(&mut T, S) -> io::Result<()>,
     {
-        try!(self.do_overflow_check_for_next_sample());
-        try!(write_data(&mut self.writer, sample));
+        self.do_overflow_check_for_next_sample()?;
+        write_data(&mut self.writer, sample)?;
         self.written_samples += 1;
         Ok(())
     }
@@ -253,15 +261,15 @@ impl<T> WaveWriter<T>
         let riff_chunk_size = 36 + data_chunk_size;
 
         // File size minus eight bytes
-        try!(self.writer.seek(SeekFrom::Start(4)));
-        try!(self.writer.write_u32_l(riff_chunk_size));
+        self.writer.seek(SeekFrom::Start(4))?;
+        self.writer.write_u32_l(riff_chunk_size)?;
 
         // Data size minus eight bytes
-        try!(self.writer.seek(SeekFrom::Start(40)));
-        try!(self.writer.write_u32_l(data_chunk_size));
+        self.writer.seek(SeekFrom::Start(40))?;
+        self.writer.write_u32_l(data_chunk_size)?;
 
         // Seek back to the end so we can continue writing
-        try!(self.writer.seek(SeekFrom::End(0)));
+        self.writer.seek(SeekFrom::End(0))?;
 
         Ok(())
     }
@@ -291,9 +299,9 @@ mod tests {
     use byteorder::{LittleEndian, WriteBytesExt};
 
     use super::super::WaveReader;
-    use super::super::{MIN_I24_VALUE, MAX_I24_VALUE};
-    use super::{WaveWriter, WriteError, WriteResult};
+    use super::super::{MAX_I24_VALUE, MIN_I24_VALUE};
     use super::clamp;
+    use super::{WaveWriter, WriteError, WriteResult};
 
     // Validation tests
 
@@ -449,16 +457,20 @@ mod tests {
     }
 
     fn test_overflow<F>(bits_per_sample: u16, write_sample: F)
-        where F: Fn(&mut WaveWriter<Cursor<Vec<u8>>>) -> WriteResult<()>
+    where
+        F: Fn(&mut WaveWriter<Cursor<Vec<u8>>>) -> WriteResult<()>,
     {
-        let mut wave_writer = WaveWriter::new(1, 44100, bits_per_sample, Cursor::new(Vec::new()))
-            .unwrap();
+        let mut wave_writer =
+            WaveWriter::new(1, 44100, bits_per_sample, Cursor::new(Vec::new())).unwrap();
 
         // Make it believe we are close to overflow:
         wave_writer.written_samples = (u32::max_value() - 44) / (bits_per_sample as u32 / 8);
 
         // The next write should overflow
-        assert_matches!(Err(WriteError::ExceededMaxSize), write_sample(&mut wave_writer));
+        assert_matches!(
+            Err(WriteError::ExceededMaxSize),
+            write_sample(&mut wave_writer)
+        );
     }
 
     #[test]
@@ -475,16 +487,20 @@ mod tests {
         });
     }
 
-    fn test_overflow_doesnt_let_us_start_an_incomplete_frame<F>(num_channels: u16,
-                                                                bits_per_sample: u16,
-                                                                write_sample: F)
-        where F: Fn(&mut WaveWriter<Cursor<Vec<u8>>>) -> WriteResult<()>
+    fn test_overflow_doesnt_let_us_start_an_incomplete_frame<F>(
+        num_channels: u16,
+        bits_per_sample: u16,
+        write_sample: F,
+    ) where
+        F: Fn(&mut WaveWriter<Cursor<Vec<u8>>>) -> WriteResult<()>,
     {
-        let mut wave_writer = WaveWriter::new(num_channels,
-                                              44100,
-                                              bits_per_sample,
-                                              Cursor::new(Vec::new()))
-            .unwrap();
+        let mut wave_writer = WaveWriter::new(
+            num_channels,
+            44100,
+            bits_per_sample,
+            Cursor::new(Vec::new()),
+        )
+        .unwrap();
 
         // With this value, we should still be able to write one more 5-channel
         // frame, but should hit a failure when we start the second frame.
@@ -503,48 +519,60 @@ mod tests {
 
         // Starting the next frame should overflow, even though we still have
         // room to write one more sample.
-        assert_matches!(Err(WriteError::ExceededMaxSize), write_sample(&mut wave_writer));
+        assert_matches!(
+            Err(WriteError::ExceededMaxSize),
+            write_sample(&mut wave_writer)
+        );
     }
 
     // Write validation tests
 
     #[test]
     fn test_writing_8bit() {
-        test_writing(8,
-                     |wave_writer, x| wave_writer.write_sample_u8(x as u8),
-                     |wave_reader, x| wave_reader.read_sample_u8().unwrap() == x as u8);
+        test_writing(
+            8,
+            |wave_writer, x| wave_writer.write_sample_u8(x as u8),
+            |wave_reader, x| wave_reader.read_sample_u8().unwrap() == x as u8,
+        );
     }
 
     #[test]
     fn test_writing_16bit() {
-        test_writing(16,
-                     |wave_writer, x| wave_writer.write_sample_i16(x as i16 * 100),
-                     |wave_reader, x| wave_reader.read_sample_i16().unwrap() == x as i16 * 100);
+        test_writing(
+            16,
+            |wave_writer, x| wave_writer.write_sample_i16(x as i16 * 100),
+            |wave_reader, x| wave_reader.read_sample_i16().unwrap() == x as i16 * 100,
+        );
     }
 
     #[test]
     fn test_writing_24bit() {
-        test_writing(24,
-                     |wave_writer, x| wave_writer.write_sample_i24(x as i32 * 32767),
-                     |wave_reader, x| wave_reader.read_sample_i24().unwrap() == x as i32 * 32767);
+        test_writing(
+            24,
+            |wave_writer, x| wave_writer.write_sample_i24(x as i32 * 32767),
+            |wave_reader, x| wave_reader.read_sample_i24().unwrap() == x as i32 * 32767,
+        );
     }
 
     #[test]
     fn test_writing_32bit() {
-        test_writing(32,
-                     |wave_writer, x| wave_writer.write_sample_i32(x as i32 * 8000000),
-                     |wave_reader, x| wave_reader.read_sample_i32().unwrap() == x as i32 * 8000000);
+        test_writing(
+            32,
+            |wave_writer, x| wave_writer.write_sample_i32(x as i32 * 8000000),
+            |wave_reader, x| wave_reader.read_sample_i32().unwrap() == x as i32 * 8000000,
+        );
     }
 
     fn test_writing<F, G>(bits_per_sample: u16, write_sample: F, read_and_check_equal: G)
-        where F: Fn(&mut WaveWriter<&mut Cursor<Vec<u8>>>, i32) -> WriteResult<()>,
-              G: Fn(&mut WaveReader<Cursor<Vec<u8>>>, i32) -> bool
+    where
+        F: Fn(&mut WaveWriter<&mut Cursor<Vec<u8>>>, i32) -> WriteResult<()>,
+        G: Fn(&mut WaveReader<Cursor<Vec<u8>>>, i32) -> bool,
     {
         let data = Vec::new();
         let mut cursor = Cursor::new(data);
         {
-            let mut wave_writer = WaveWriter::new(1, 44100, bits_per_sample, cursor.by_ref())
-                .unwrap();
+            let mut wave_writer =
+                WaveWriter::new(1, 44100, bits_per_sample, cursor.by_ref()).unwrap();
 
             for i in 0..256 {
                 write_sample(&mut wave_writer, i).unwrap();
@@ -567,8 +595,14 @@ mod tests {
 
         // We're not currently surfacing the chunk/subchunk info in the reader
         // so just access the data directly.
-        assert_eq!(get_little_endian_bytes(36 + expected_data_size as u32), &data[4..8]);
-        assert_eq!(get_little_endian_bytes(expected_data_size as u32), &data[40..44]);
+        assert_eq!(
+            get_little_endian_bytes(36 + expected_data_size as u32),
+            &data[4..8]
+        );
+        assert_eq!(
+            get_little_endian_bytes(expected_data_size as u32),
+            &data[40..44]
+        );
     }
 
     fn get_little_endian_bytes(n: u32) -> [u8; 4] {
