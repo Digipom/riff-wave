@@ -45,13 +45,6 @@ impl fmt::Display for WriteError {
 }
 
 impl error::Error for WriteError {
-    fn description(&self) -> &str {
-        match *self {
-            WriteError::ExceededMaxSize => "exceeded max size",
-            WriteError::Io(ref err) => err.description(),
-        }
-    }
-
     fn cause(&self) -> Option<&dyn error::Error> {
         match *self {
             WriteError::ExceededMaxSize => None,

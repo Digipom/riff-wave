@@ -35,15 +35,6 @@ pub enum ReadError {
 /// Represents a result when reading a wave file.
 pub type ReadResult<T> = result::Result<T, ReadError>;
 
-impl fmt::Display for ReadError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            ReadError::Format(ref err_kind) => write!(f, "Format error: {}", err_kind),
-            ReadError::Io(ref err) => write!(f, "IO error: {}", err),
-        }
-    }
-}
-
 /// Represents a file format error, when the wave file is incorrect or unsupported.
 #[derive(Debug)]
 pub enum ReadErrorKind {
@@ -89,12 +80,14 @@ impl fmt::Display for ReadErrorKind {
     }
 }
 
-    fn description(&self) -> &str {
+impl fmt::Display for ReadError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            ReadError::Format(ref kind) => kind.to_string(),
-            ReadError::Io(ref err) => err.description(),
+            ReadError::Format(ref err_kind) => write!(f, "Format error: {}", err_kind),
+            ReadError::Io(ref err) => write!(f, "IO error: {}", err),
         }
     }
+}
 
 impl error::Error for ReadError {
     fn cause(&self) -> Option<&dyn error::Error> {
