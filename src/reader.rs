@@ -97,7 +97,7 @@ impl error::Error for ReadError {
         }
     }
 
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         match *self {
             ReadError::Format(_) => None,
             ReadError::Io(ref err) => Some(err),

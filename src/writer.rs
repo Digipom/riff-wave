@@ -52,7 +52,7 @@ impl error::Error for WriteError {
         }
     }
 
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         match *self {
             WriteError::ExceededMaxSize => None,
             WriteError::Io(ref err) => Some(err),
